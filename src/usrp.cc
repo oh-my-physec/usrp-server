@@ -2,6 +2,7 @@
 #define BOOST_ALLOW_DEPRECATED_HEADERS
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <boost/thread.hpp>
@@ -30,12 +31,17 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(rx_gain),
     GETTER_SETTER_PAIR(rx_rate),
     GETTER_SETTER_PAIR(rx_sample_per_buffer),
+    GETTER_SETTER_PAIR(rx_settling_time),
     GETTER_SETTER_PAIR(tx_antenna),
     GETTER_SETTER_PAIR(tx_bandwidth),
     GETTER_SETTER_PAIR(tx_freq),
     GETTER_SETTER_PAIR(tx_gain),
     GETTER_SETTER_PAIR(tx_rate),
     GETTER_SETTER_PAIR(tx_sample_per_buffer),
+    GETTER_SETTER_PAIR(tx_settling_time),
+    GETTER_SETTER_PAIR(cpu_format),
+    GETTER_SETTER_PAIR(otw_format),
+    GETTER_SETTER_PAIR(clock_source),
   } {}
 
 std::string usrp::get_pp_string() const {
@@ -66,6 +72,10 @@ std::string usrp::get_rx_sample_per_buffer() const {
   return std::to_string(rx_sample_per_buffer);
 }
 
+std::string usrp::get_rx_settling_time() const {
+  return std::to_string(rx_settling_time);
+}
+
 std::string usrp::get_tx_antenna() const {
   return device->get_tx_antenna();
 }
@@ -88,6 +98,22 @@ std::string usrp::get_tx_rate() const {
 
 std::string usrp::get_tx_sample_per_buffer() const {
   return std::to_string(tx_sample_per_buffer);
+}
+
+std::string usrp::get_tx_settling_time() const {
+  return std::to_string(tx_settling_time);
+}
+
+std::string usrp::get_cpu_format() const {
+  return cpu_format;
+}
+
+std::string usrp::get_otw_format() const {
+  return otw_format;
+}
+
+std::string usrp::get_clock_source() const {
+  return device->get_clock_source(/*mboard=*/0);
 }
 
 void usrp::set_pp_string(std::string &pp) const {
@@ -119,6 +145,10 @@ void usrp::set_rx_sample_per_buffer(std::string &spb) const {
   rx_sample_per_buffer = std::stoll(spb);
 }
 
+void usrp::set_rx_settling_time(std::string &time) const {
+  rx_settling_time = std::stod(time);
+}
+
 void usrp::set_tx_antenna(std::string &ant) const {
   device->set_tx_antenna(ant);
 }
@@ -144,6 +174,27 @@ void usrp::set_tx_sample_per_buffer(std::string &spb) const {
   tx_sample_per_buffer = std::stoll(spb);
 }
 
+void usrp::set_tx_settling_time(std::string &time) const {
+  tx_settling_time = std::stod(time);
+}
+
+void usrp::set_cpu_format(std::string &fmt) const {
+  cpu_format = fmt;
+}
+
+void usrp::set_otw_format(std::string &fmt) const {
+  otw_format = fmt;
+}
+
+void usrp::set_clock_source(std::string &clock_source) const {
+  // We must check the clock_source or set_clock_source() will throw an
+  // exception.
+  if (clock_source != "internal" && clock_source != "external" &&
+      clock_source != "mimo" && clock_source != "gpsdo")
+    return;
+  device->set_clock_source(clock_source);
+}
+
 std::string usrp::get_device_config(std::string &param) const {
   auto It = getter_setter_pairs.find(param);
   if (It != getter_setter_pairs.cend())
@@ -160,31 +211,136 @@ void usrp::set_device_config(std::string &param, std::string &val) const {
 
 message_payload
 usrp::get_or_set_device_configs(message_payload &&payload) const {
-  // TODO: Replace lock()/unlock() with a lock guard.
-  device_lock.lock();
+  boost::unique_lock<boost::mutex>(device_lock);
   for (uint64_t I = 0; I < payload.size(); ++I) {
     if (payload[I].second != "")
       set_device_config(payload[I].first, payload[I].second);
     payload[I].second = get_device_config(payload[I].first);
   }
-  device_lock.unlock();
   return payload;
 }
 
 template <typename sample_type>
-void usrp::sample_from_file(const std::string &filename) const {
+void usrp::sample_from_file_generic(const std::string &filename) const {
 }
 
 template <typename sample_type>
+void usrp::sample_to_file_generic(const std::string &filename) const {
+  uhd::stream_args_t stream_args(cpu_format, otw_format);
+  // Currently, we won't develop applications with multiple channels.
+  // stream_args.channel = rx_channel_nums;
+  uhd::rx_streamer::sptr rx_stream = device->get_rx_stream(stream_args);
+
+  // Prepare buffers for received samples and metadata.
+  uhd::rx_metadata_t md;
+  std::vector<sample_type> buffer(rx_sample_per_buffer);
+
+  std::ofstream ofile(filename.c_str(), std::ofstream::binary);
+  bool overflow_message = true;
+  double timeout = rx_settling_time + 0.1f;
+
+  // Setup streaming
+  uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
+
+  // TODO: Add support for delay sampling.
+  stream_cmd.stream_now = true;
+  stream_cmd.time_spec = uhd::time_spec_t();
+  rx_stream->issue_stream_cmd(stream_cmd);
+
+  rx_keep_sampling = true;
+  while (rx_keep_sampling) {
+    size_t rx_samples_num = rx_stream->recv(&buffer[0], rx_sample_per_buffer,
+					    md, timeout);
+    std::cout << rx_samples_num << std::endl;
+    // Small timeout for subsequent receiving.
+    timeout = 0.1f;
+
+    if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
+      if (overflow_message) {
+	overflow_message = false;
+	std::cerr << "Got an overflow indication" << std::endl;
+      }
+      continue;
+    }
+
+    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
+      throw std::runtime_error(md.strerror());
+    }
+
+    ofile.write((const char *)&buffer[0], rx_samples_num * sizeof(sample_type));
+  }
+
+  // Shutdown rx.
+  uhd::stream_cmd_t
+    shutdown_rx_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
+  rx_stream->issue_stream_cmd(shutdown_rx_cmd);
+  ofile.close();
+}
+
 void usrp::sample_to_file(const std::string &filename) const {
+  if (cpu_format == "fc64")
+    sample_to_file_generic<std::complex<double>>(filename);
+  else if (cpu_format == "fc32")
+    sample_to_file_generic<std::complex<float>>(filename);
+  else if (cpu_format == "sc16")
+    sample_to_file_generic<std::complex<short>>(filename);
+}
+
+bool usrp::rx_is_sampling_to_file() const {
+  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  return sample_to_file_thread != nullptr;
+}
+
+void usrp::launch_sample_to_file(const std::string &filename) {
+  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  if (sample_to_file_thread == nullptr) {
+    sample_to_file_thread =
+      threads.create_thread(std::bind(&usrp::sample_to_file, this, filename));
+  }
+}
+
+void usrp::shutdown_sample_to_file() {
+  rx_keep_sampling = false;
+  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  if (sample_to_file_thread != nullptr) {
+    // Wait this thread util stopping.
+    sample_to_file_thread->join();
+    threads.remove_thread(sample_to_file_thread);
+    sample_to_file_thread = nullptr;
+  }
+}
+
+void usrp::force_shutdown_all_jobs() {
+  shutdown_sample_to_file();
+  threads.join_all();
+}
+
+message usrp::process_conf_req(message &msg) {
+  return message{msg.get_id(), msg.get_type(),
+    get_or_set_device_configs(msg.get_payload())};
+}
+
+message usrp::process_work_req(message &msg) {
+  std::vector<std::pair<std::string, std::string>> payload = msg.get_payload();
+  if (payload.size() == 0)
+    return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
+  if (payload[0].second == "launch_sample_to_file") {
+    if (payload.size() < 2)
+      return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
+    launch_sample_to_file(payload[1].second);
+    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
+  } else if (payload[0].second == "shutdown_sample_to_file") {
+    shutdown_sample_to_file();
+    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
+  }
+  return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
 }
 
 message usrp::handle_request(message &msg) {
   if (msg.get_type() == mt::CONF) {
-    return message{msg.get_id(), msg.get_type(),
-      get_or_set_device_configs(msg.get_payload())};
+    return process_conf_req(msg);
   } else if (msg.get_type() == mt::WORK) {
-    return message{msg.get_id(), msg.get_type(), {}};
+    return process_work_req(msg);
   }
   return message{msg.get_id(), msg.get_type(), {}};
 }
@@ -202,4 +358,8 @@ void usrp::zmq_server_run() {
     message response = handle_request(msg);
     socket.send(zmq::buffer(message::to_json(response)), zmq::send_flags::none);
   }
+}
+
+usrp::~usrp() {
+  force_shutdown_all_jobs();
 }

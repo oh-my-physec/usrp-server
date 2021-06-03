@@ -1,4 +1,5 @@
 import zmq
+import time
 
 context = zmq.Context()
 
@@ -6,7 +7,7 @@ socket = context.socket(zmq.REQ)
 socket.connect("tcp://localhost:5555")
 
 #  Do 10 requests, waiting each time for a response
-for I in range(3):
+for I in range(1):
     socket.send(b"""
 {
   "hello": "world",
@@ -49,7 +50,8 @@ for I in range(3):
     {"key": "tx_gain", "val": "300000"},
     {"key": "tx_rate", "val": "2000000"},
     {"key": "rx_sample_per_buffer", "val": "300000"},
-    {"key": "tx_sample_per_buffer", "val": "300000"}
+    {"key": "tx_sample_per_buffer", "val": "300000"},
+    {"key": "clock_source", "val": "internal"}
    ]
 }""")
 
@@ -62,6 +64,25 @@ for I in range(3):
   "id": "world",
   "type": "WORK",
   "payload": [
+    {"key": "funcname", "val" : "launch_sample_to_file"},
+    {"key": "filename", "val" : "/tmp/mydata.data"},
+    {"key": "rx_sample_per_buffer", "val": "300000"},
+    {"key": "tx_sample_per_buffer", "val": "300000"}
+   ]
+}""")
+
+    # Get the reply.
+    message = socket.recv()
+    print(str(message.decode()))
+
+    time.sleep(1)
+    socket.send(b"""
+{
+  "id": "world",
+  "type": "WORK",
+  "payload": [
+    {"key": "funcname", "val" : "shutdown_sample_to_file"},
+    {"key": "filename", "val" : "/tmp/mydata.data"},
     {"key": "rx_sample_per_buffer", "val": "300000"},
     {"key": "tx_sample_per_buffer", "val": "300000"}
    ]
