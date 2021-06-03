@@ -49,12 +49,10 @@ static uint64_t get_message_id(const rj::Value &val) {
 static mt get_message_type(const rj::Value &val) {
   // TODO: Replace if-else statement with a hash table.
   const char *type = get_str_or(val, "");
-  if (strcmp(type, "CONF_RESET") == 0)
-    return mt::CONF_RESET;
-  else if (strcmp(type, "CONF_SET") == 0)
-    return mt::CONF_SET;
-  else if (strcmp(type, "CONF_GET") == 0)
-    return mt::CONF_GET;
+  if (strcmp(type, "CONF") == 0)
+    return mt::CONF;
+  else if (strcmp(type, "WORK") == 0)
+    return mt::WORK;
   return mt::INVALID;
 }
 
@@ -81,13 +79,12 @@ static void create_message_id(rj::Value &obj, uint64_t id, rj::Document &d) {
 
 static void create_message_type(rj::Value &obj, mt type, rj::Document &d) {
   rj::Value v(rj::kStringType);
-  if (type == mt::CONF_GET) {
-    v.SetString("CONF_GET");
-  } else if (type == mt::CONF_SET) {
-    v.SetString("CONF_SET");
-  } else {
+  if (type == mt::CONF)
+    v.SetString("CONF");
+  else if (type == mt::WORK)
+    v.SetString("WORK");
+  else
     v.SetString("INVALID");
-  }
   obj.AddMember(rj::StringRef(MSG_TYPE), v, d.GetAllocator());
 }
 

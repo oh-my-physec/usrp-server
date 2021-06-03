@@ -11,10 +11,32 @@
 #include "usrp.hpp"
 #include "message.hpp"
 
+using mt = message_type;
+
+#define GETTER_SETTER_PAIR(name)                                                \
+  { #name, getter_setter_pair {                                                 \
+              std::bind(&usrp::get_## name, this),                              \
+	      std::bind(&usrp::set_## name, this, std::placeholders::_1) } }
+
 usrp::usrp(std::string device_args, std::string zmq_bind) :
   device_args(device_args),
   zmq_bind(zmq_bind),
-  device(uhd::usrp::multi_usrp::make(device_args)) {}
+  device(uhd::usrp::multi_usrp::make(device_args)),
+  getter_setter_pairs{
+    GETTER_SETTER_PAIR(pp_string),
+    GETTER_SETTER_PAIR(rx_antenna),
+    GETTER_SETTER_PAIR(rx_bandwidth),
+    GETTER_SETTER_PAIR(rx_freq),
+    GETTER_SETTER_PAIR(rx_gain),
+    GETTER_SETTER_PAIR(rx_rate),
+    GETTER_SETTER_PAIR(rx_sample_per_buffer),
+    GETTER_SETTER_PAIR(tx_antenna),
+    GETTER_SETTER_PAIR(tx_bandwidth),
+    GETTER_SETTER_PAIR(tx_freq),
+    GETTER_SETTER_PAIR(tx_gain),
+    GETTER_SETTER_PAIR(tx_rate),
+    GETTER_SETTER_PAIR(tx_sample_per_buffer),
+  } {}
 
 std::string usrp::get_pp_string() const {
   return device->get_pp_string();
@@ -40,6 +62,10 @@ std::string usrp::get_rx_rate() const {
   return std::to_string(device->get_rx_rate());
 }
 
+std::string usrp::get_rx_sample_per_buffer() const {
+  return std::to_string(rx_sample_per_buffer);
+}
+
 std::string usrp::get_tx_antenna() const {
   return device->get_tx_antenna();
 }
@@ -58,6 +84,14 @@ std::string usrp::get_tx_gain() const {
 
 std::string usrp::get_tx_rate() const {
   return std::to_string(device->get_tx_rate());
+}
+
+std::string usrp::get_tx_sample_per_buffer() const {
+  return std::to_string(tx_sample_per_buffer);
+}
+
+void usrp::set_pp_string(std::string &pp) const {
+  /* DO NOTHING. Just work as a placeholder. */
 }
 
 void usrp::set_rx_antenna(std::string &ant) const {
@@ -81,6 +115,9 @@ void usrp::set_rx_rate(std::string &rate) const {
   device->set_rx_rate(std::stod(rate));
 }
 
+void usrp::set_rx_sample_per_buffer(std::string &spb) const {
+  rx_sample_per_buffer = std::stoll(spb);
+}
 
 void usrp::set_tx_antenna(std::string &ant) const {
   device->set_tx_antenna(ant);
@@ -103,86 +140,51 @@ void usrp::set_tx_rate(std::string &rate) const {
   device->set_tx_rate(std::stod(rate));
 }
 
+void usrp::set_tx_sample_per_buffer(std::string &spb) const {
+  tx_sample_per_buffer = std::stoll(spb);
+}
+
 std::string usrp::get_device_config(std::string &param) const {
-  // TODO: Replace the if-else statement with a hash table.
-  if (param == "pp_string")
-    return get_pp_string();
-  else if (param == "rx_antenna")
-    return get_rx_antenna();
-  else if (param == "rx_bandwidth")
-    return get_rx_bandwidth();
-  else if (param == "rx_freq")
-    return get_rx_freq();
-  else if (param == "rx_gain")
-    return get_rx_gain();
-  else if (param == "rx_rate")
-    return get_rx_rate();
-  else if (param == "tx_antenna")
-    return get_tx_antenna();
-  else if (param == "tx_bandwidth")
-    return get_tx_bandwidth();
-  else if (param == "tx_freq")
-    return get_tx_freq();
-  else if (param == "tx_gain")
-    return get_tx_gain();
-  else if (param == "tx_rate")
-    return get_tx_rate();
+  auto It = getter_setter_pairs.find(param);
+  if (It != getter_setter_pairs.cend())
+    return It->second.getter();
   return "";
 }
 
 void usrp::set_device_config(std::string &param, std::string &val) const {
-  // TODO: Replace the if-else statement with a hash table.
-  if (param == "rx_antenna")
-    set_rx_antenna(val);
-  else if (param == "rx_bandwidth")
-    set_rx_bandwidth(val);
-  else if (param == "rx_freq")
-    set_rx_freq(val);
-  else if (param == "rx_gain")
-    set_rx_gain(val);
-  else if (param == "rx_rate")
-    set_rx_rate(val);
-  else if (param == "tx_antenna")
-    set_tx_antenna(val);
-  else if (param == "tx_bandwidth")
-    set_tx_bandwidth(val);
-  else if (param == "tx_freq")
-    set_tx_freq(val);
-  else if (param == "tx_gain")
-    set_tx_gain(val);
-  else if (param == "tx_rate")
-    set_tx_rate(val);
+  auto It = getter_setter_pairs.find(param);
+  if (It != getter_setter_pairs.cend()) {
+    It->second.setter(val);
+  }
 }
 
 message_payload
-usrp::get_device_configs(message_payload &&payload) const {
-  // TODO: Replace lock()/unlock() with a lock guard.
-  device_lock.lock();
-  for (uint64_t I = 0; I < payload.size(); ++I)
-    payload[I].second = get_device_config(payload[I].first);
-  device_lock.unlock();
-  return payload;
-}
-
-message_payload
-usrp::set_device_configs(message_payload &&payload) const {
+usrp::get_or_set_device_configs(message_payload &&payload) const {
   // TODO: Replace lock()/unlock() with a lock guard.
   device_lock.lock();
   for (uint64_t I = 0; I < payload.size(); ++I) {
-    set_device_config(payload[I].first, payload[I].second);
+    if (payload[I].second != "")
+      set_device_config(payload[I].first, payload[I].second);
     payload[I].second = get_device_config(payload[I].first);
   }
   device_lock.unlock();
   return payload;
 }
 
+template <typename sample_type>
+void usrp::sample_from_file(const std::string &filename) const {
+}
+
+template <typename sample_type>
+void usrp::sample_to_file(const std::string &filename) const {
+}
+
 message usrp::handle_request(message &msg) {
-  if (msg.get_type() == message_type::CONF_GET) {
+  if (msg.get_type() == mt::CONF) {
     return message{msg.get_id(), msg.get_type(),
-      get_device_configs(msg.get_payload())};
-  } else if (msg.get_type() == message_type::CONF_SET) {
-    return message{msg.get_id(), msg.get_type(),
-      set_device_configs(msg.get_payload())};
+      get_or_set_device_configs(msg.get_payload())};
+  } else if (msg.get_type() == mt::WORK) {
+    return message{msg.get_id(), msg.get_type(), {}};
   }
   return message{msg.get_id(), msg.get_type(), {}};
 }

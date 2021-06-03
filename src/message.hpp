@@ -5,21 +5,29 @@
 #include <vector>
 #include <boost/optional.hpp>
 
-constexpr const char * MSG_ID          = "id";
-constexpr const char * MSG_TYPE        = "type";
-constexpr const char * MSG_PAYLOAD     = "payload";
-constexpr const char * MSG_PAYLOAD_KEY = "key";
-constexpr const char * MSG_PAYLOAD_VAL = "val";
+// The zmq server accepts JSON messages.
+// message = {
+//   "id"      : <the id of this message : Number>
+//   "type"    : <the type of this message : String>
+//   "payload" : <the payload of this message : Array(kv-pairs)>
+// }
+// kv-pairs = {
+//   "key" : <key : String>,
+//   "val" : <val : String>,
+// }
+#define MSG_ID          "id"
+#define MSG_TYPE        "type"
+#define MSG_PAYLOAD     "payload"
+#define MSG_PAYLOAD_KEY "key"
+#define MSG_PAYLOAD_VAL "val"
 
 typedef enum {
   // Invalid message.
   INVALID,
-  // Reset USRP configuration.
-  CONF_RESET,
-  // Set USRP configuration.
-  CONF_SET,
-  // Get USRP configuration.
-  CONF_GET,
+  // Get or set USRP configuration.
+  CONF,
+  // Let USRP do some work.
+  WORK,
 } message_type;
 
 // The payload is an array of key-value pairs.
