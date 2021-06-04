@@ -1,5 +1,6 @@
 import zmq
 import time
+import json
 
 context = zmq.Context()
 
@@ -30,7 +31,7 @@ for I in range(1):
 
     #  Get the reply.
     message = socket.recv()
-    print(str(message.decode()))
+    print(str(message.decode()), flush=True)
 
     socket.send(b"""
 {
@@ -57,7 +58,7 @@ for I in range(1):
 
     # Get the reply.
     message = socket.recv()
-    print(str(message.decode()))
+    print(str(message.decode()), flush=True)
 
     socket.send(b"""
 {
@@ -73,7 +74,7 @@ for I in range(1):
 
     # Get the reply.
     message = socket.recv()
-    print(str(message.decode()))
+    print(str(message.decode()), flush=True)
 
     time.sleep(1)
     socket.send(b"""
@@ -90,4 +91,5 @@ for I in range(1):
 
     # Get the reply.
     message = socket.recv()
-    print(str(message.decode()))
+    obj = json.loads(str(message.decode()))
+    print(obj)

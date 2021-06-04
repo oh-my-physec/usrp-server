@@ -40,6 +40,7 @@ private:
   mutable double tx_settling_time = 0.0;
 
   // When rx_keep_sampling is false, the receiver will stop sampling to file.
+  // rx_keep_sampling is protected by the sample_to_file_thread_lock.
   mutable bool rx_keep_sampling = false;
 
   // Thread for sample_to_file.

@@ -247,11 +247,9 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
   stream_cmd.time_spec = uhd::time_spec_t();
   rx_stream->issue_stream_cmd(stream_cmd);
 
-  rx_keep_sampling = true;
   while (rx_keep_sampling) {
     size_t rx_samples_num = rx_stream->recv(&buffer[0], rx_sample_per_buffer,
 					    md, timeout);
-    std::cout << rx_samples_num << std::endl;
     // Small timeout for subsequent receiving.
     timeout = 0.1f;
 
@@ -294,14 +292,18 @@ bool usrp::rx_is_sampling_to_file() const {
 void usrp::launch_sample_to_file(const std::string &filename) {
   boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
   if (sample_to_file_thread == nullptr) {
+    // Spawn a thread to start sample_to_file work.
+    // rx_keep_sampling must be protected by the sample_to_file_thread_lock.
+    rx_keep_sampling = true;
     sample_to_file_thread =
       threads.create_thread(std::bind(&usrp::sample_to_file, this, filename));
   }
 }
 
 void usrp::shutdown_sample_to_file() {
-  rx_keep_sampling = false;
   boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  // rx_keep_sampling must be protected by the sample_to_file_thread_lock.
+  rx_keep_sampling = false;
   if (sample_to_file_thread != nullptr) {
     // Wait this thread util stopping.
     sample_to_file_thread->join();
@@ -350,13 +352,21 @@ void usrp::zmq_server_run() {
   zmq::socket_t socket(ctx, zmq::socket_type::rep);
   socket.bind(zmq_bind);
 
+  zmq::pollitem_t items[] = {
+    { socket, 0, ZMQ_POLLIN, 0 },
+  };
+
   for (;;) {
-    zmq::message_t req;
-    socket.recv(req, zmq::recv_flags::none);
-    std::string req_str = req.to_string();
-    message msg = message::from_json(req_str);
-    message response = handle_request(msg);
-    socket.send(zmq::buffer(message::to_json(response)), zmq::send_flags::none);
+    zmq::poll(&items[0], 1, 1000);
+
+    if (items[0].revents & ZMQ_POLLIN) {
+      zmq::message_t req;
+      socket.recv(req, zmq::recv_flags::none);
+      std::string req_str = req.to_string();
+      message msg = message::from_json(req_str);
+      message response = handle_request(msg);
+      socket.send(zmq::buffer(message::to_json(response)), zmq::send_flags::none);
+    }
   }
 }
 
