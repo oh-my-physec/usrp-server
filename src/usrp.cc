@@ -229,7 +229,7 @@ void usrp::set_device_config(std::string &param, std::string &val) const {
 
 message_payload
 usrp::get_or_set_device_configs(message_payload &&payload) const {
-  boost::unique_lock<boost::mutex>(device_lock);
+  boost::unique_lock<boost::mutex> lk(device_lock);
   for (uint64_t I = 0; I < payload.size(); ++I) {
     if (payload[I].second != "")
       set_device_config(payload[I].first, payload[I].second);
@@ -326,12 +326,12 @@ void usrp::sample_to_file(const std::string &filename) const {
 }
 
 bool usrp::rx_is_sampling_to_file() const {
-  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  boost::unique_lock<boost::mutex> lk(sample_to_file_thread_lock);
   return sample_to_file_thread != nullptr;
 }
 
 void usrp::launch_sample_to_file(const std::string &filename) {
-  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  boost::unique_lock<boost::mutex> lk(sample_to_file_thread_lock);
   if (sample_to_file_thread == nullptr) {
     // Spawn a thread to start sample_to_file work.
     // rx_keep_sampling must be protected by the sample_to_file_thread_lock.
@@ -342,7 +342,7 @@ void usrp::launch_sample_to_file(const std::string &filename) {
 }
 
 void usrp::shutdown_sample_to_file() {
-  boost::unique_lock<boost::mutex>(sample_to_file_thread_lock);
+  boost::unique_lock<boost::mutex> lk(sample_to_file_thread_lock);
   // rx_keep_sampling must be protected by the sample_to_file_thread_lock.
   rx_keep_sampling = false;
   if (sample_to_file_thread != nullptr) {
