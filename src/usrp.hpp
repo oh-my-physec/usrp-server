@@ -28,12 +28,14 @@ private:
   // fc32 - complex<float>
   // sc16 - complex<int>
   // sc8  - complex<int8_t>
-  mutable std::string cpu_format = "fc32";
+  mutable std::string rx_cpu_format = "fc32";
+  mutable std::string tx_cpu_format = "fc32";
   // The OTW format is a string that describes the format over-the-wire. The
   // following over-the-wire formats have been implemented:
   // sc16 - Q16  I16
   // sc8  - Q8_1 I8_1 Q8_0 I8_0
-  mutable std::string otw_format = "sc16";
+  mutable std::string rx_otw_format = "sc16";
+  mutable std::string tx_otw_format = "sc16";
 
   // Settling time before receiving/transmitting signals.
   mutable double rx_settling_time = 0.0;
@@ -46,7 +48,11 @@ private:
   // Thread for sample_to_file.
   mutable boost::mutex sample_to_file_thread_lock;
   boost::thread *sample_to_file_thread = nullptr;
-  
+
+  // Thread for sample_from_file.
+  mutable boost::mutex sample_from_file_thread_lock;
+  boost::thread *sample_from_file_thread = nullptr;
+
   // Threads for running jobs.
   boost::thread_group threads;
 
@@ -68,6 +74,8 @@ public:
   std::string get_rx_rate() const;
   std::string get_rx_sample_per_buffer() const;
   std::string get_rx_settling_time() const;
+  std::string get_rx_cpu_format() const;
+  std::string get_rx_otw_format() const;
   std::string get_tx_antenna() const;
   std::string get_tx_bandwidth() const;
   std::string get_tx_freq() const;
@@ -75,8 +83,8 @@ public:
   std::string get_tx_rate() const;
   std::string get_tx_sample_per_buffer() const;
   std::string get_tx_settling_time() const;
-  std::string get_cpu_format() const;
-  std::string get_otw_format() const;
+  std::string get_tx_cpu_format() const;
+  std::string get_tx_otw_format() const;
   std::string get_clock_source() const;
 
   void set_pp_string(std::string &pp) const;
@@ -87,6 +95,8 @@ public:
   void set_rx_rate(std::string &rate) const;
   void set_rx_sample_per_buffer(std::string &spb) const;
   void set_rx_settling_time(std::string &time) const;
+  void set_rx_cpu_format(std::string &fmt) const;
+  void set_rx_otw_format(std::string &fmt) const;
   void set_tx_antenna(std::string &ant) const;
   void set_tx_bandwidth(std::string &bw) const;
   void set_tx_freq(std::string &freq) const;
@@ -94,8 +104,8 @@ public:
   void set_tx_rate(std::string &rate) const;
   void set_tx_sample_per_buffer(std::string &spb) const;
   void set_tx_settling_time(std::string &time) const;
-  void set_cpu_format(std::string &fmt) const;
-  void set_otw_format(std::string &fmt) const;
+  void set_tx_cpu_format(std::string &fmt) const;
+  void set_tx_otw_format(std::string &fmt) const;
   void set_clock_source(std::string &clock_source) const;
 
   std::string get_device_config(std::string &param) const;
@@ -106,6 +116,9 @@ public:
 
   template <typename sample_type>
   void sample_from_file_generic(const std::string &filename) const;
+  void sample_from_file(const std::string &filename) const;
+  void launch_sample_from_file(const std::string &filename);
+  void shutdown_sample_from_file();
 
   template <typename sample_type>
   void sample_to_file_generic(const std::string &filename) const;

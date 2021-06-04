@@ -32,6 +32,8 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(rx_rate),
     GETTER_SETTER_PAIR(rx_sample_per_buffer),
     GETTER_SETTER_PAIR(rx_settling_time),
+    GETTER_SETTER_PAIR(rx_cpu_format),
+    GETTER_SETTER_PAIR(rx_otw_format),
     GETTER_SETTER_PAIR(tx_antenna),
     GETTER_SETTER_PAIR(tx_bandwidth),
     GETTER_SETTER_PAIR(tx_freq),
@@ -39,8 +41,8 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(tx_rate),
     GETTER_SETTER_PAIR(tx_sample_per_buffer),
     GETTER_SETTER_PAIR(tx_settling_time),
-    GETTER_SETTER_PAIR(cpu_format),
-    GETTER_SETTER_PAIR(otw_format),
+    GETTER_SETTER_PAIR(tx_cpu_format),
+    GETTER_SETTER_PAIR(tx_otw_format),
     GETTER_SETTER_PAIR(clock_source),
   } {}
 
@@ -76,6 +78,14 @@ std::string usrp::get_rx_settling_time() const {
   return std::to_string(rx_settling_time);
 }
 
+std::string usrp::get_rx_cpu_format() const {
+  return rx_cpu_format;
+}
+
+std::string usrp::get_rx_otw_format() const {
+  return rx_otw_format;
+}
+
 std::string usrp::get_tx_antenna() const {
   return device->get_tx_antenna();
 }
@@ -104,12 +114,12 @@ std::string usrp::get_tx_settling_time() const {
   return std::to_string(tx_settling_time);
 }
 
-std::string usrp::get_cpu_format() const {
-  return cpu_format;
+std::string usrp::get_tx_cpu_format() const {
+  return tx_cpu_format;
 }
 
-std::string usrp::get_otw_format() const {
-  return otw_format;
+std::string usrp::get_tx_otw_format() const {
+  return tx_otw_format;
 }
 
 std::string usrp::get_clock_source() const {
@@ -149,6 +159,14 @@ void usrp::set_rx_settling_time(std::string &time) const {
   rx_settling_time = std::stod(time);
 }
 
+void usrp::set_rx_cpu_format(std::string &fmt) const {
+  rx_cpu_format = fmt;
+}
+
+void usrp::set_rx_otw_format(std::string &fmt) const {
+  rx_otw_format = fmt;
+}
+
 void usrp::set_tx_antenna(std::string &ant) const {
   device->set_tx_antenna(ant);
 }
@@ -178,12 +196,12 @@ void usrp::set_tx_settling_time(std::string &time) const {
   tx_settling_time = std::stod(time);
 }
 
-void usrp::set_cpu_format(std::string &fmt) const {
-  cpu_format = fmt;
+void usrp::set_tx_cpu_format(std::string &fmt) const {
+  tx_cpu_format = fmt;
 }
 
-void usrp::set_otw_format(std::string &fmt) const {
-  otw_format = fmt;
+void usrp::set_tx_otw_format(std::string &fmt) const {
+  tx_otw_format = fmt;
 }
 
 void usrp::set_clock_source(std::string &clock_source) const {
@@ -222,11 +240,35 @@ usrp::get_or_set_device_configs(message_payload &&payload) const {
 
 template <typename sample_type>
 void usrp::sample_from_file_generic(const std::string &filename) const {
+  uhd::stream_args_t stream_args(tx_cpu_format, tx_otw_format);
+  uhd::tx_streamer::sptr tx_stream = device->get_tx_stream(stream_args);
+
+  uhd::tx_metadata_t md;
+  std::vector<sample_type> buffer(tx_sample_per_buffer);
+  std::ifstream ifile(filename.c_str(), std::ifstream::binary);
+
+  // Loop until the entire file is transmitted.
+  while (!md.end_of_burst) {
+    ifile.read((char *)&buffer[0], buffer.size() * sizeof(sample_type));
+    size_t tx_samples_num = size_t(ifile.gcount() / sizeof(sample_type));
+
+    md.end_of_burst = ifile.eof();
+
+    const size_t samples_sent = tx_stream->send(&buffer[0], tx_samples_num, md);
+
+    if (samples_sent != tx_samples_num) {
+      UHD_LOG_ERROR("TX-STREAM",
+		    "The tx_stream timed out sending " << tx_samples_num
+		    << " samples (" << samples_sent << " sent).");
+    }
+  }
+
+  ifile.close();
 }
 
 template <typename sample_type>
 void usrp::sample_to_file_generic(const std::string &filename) const {
-  uhd::stream_args_t stream_args(cpu_format, otw_format);
+  uhd::stream_args_t stream_args(rx_cpu_format, rx_otw_format);
   // Currently, we won't develop applications with multiple channels.
   // stream_args.channel = rx_channel_nums;
   uhd::rx_streamer::sptr rx_stream = device->get_rx_stream(stream_args);
@@ -261,9 +303,8 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
       continue;
     }
 
-    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-      throw std::runtime_error(md.strerror());
-    }
+    if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
+      UHD_LOG_ERROR("RX-STREAM", md.strerror());
 
     ofile.write((const char *)&buffer[0], rx_samples_num * sizeof(sample_type));
   }
@@ -276,11 +317,11 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
 }
 
 void usrp::sample_to_file(const std::string &filename) const {
-  if (cpu_format == "fc64")
+  if (rx_cpu_format == "fc64")
     sample_to_file_generic<std::complex<double>>(filename);
-  else if (cpu_format == "fc32")
+  else if (rx_cpu_format == "fc32")
     sample_to_file_generic<std::complex<float>>(filename);
-  else if (cpu_format == "sc16")
+  else if (rx_cpu_format == "sc16")
     sample_to_file_generic<std::complex<short>>(filename);
 }
 
@@ -312,6 +353,23 @@ void usrp::shutdown_sample_to_file() {
   }
 }
 
+void usrp::sample_from_file(const std::string &filename) const {
+  if (rx_cpu_format == "fc64")
+    sample_from_file_generic<std::complex<double>>(filename);
+  else if (rx_cpu_format == "fc32")
+    sample_from_file_generic<std::complex<float>>(filename);
+  else if (rx_cpu_format == "sc16")
+    sample_from_file_generic<std::complex<short>>(filename);
+}
+
+void usrp::launch_sample_from_file(const std::string &filename) {
+  sample_from_file(filename);
+}
+
+void usrp::shutdown_sample_from_file() {
+  // TODO:
+}
+
 void usrp::force_shutdown_all_jobs() {
   shutdown_sample_to_file();
   threads.join_all();
@@ -333,6 +391,11 @@ message usrp::process_work_req(message &msg) {
     return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
   } else if (payload[0].second == "shutdown_sample_to_file") {
     shutdown_sample_to_file();
+    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
+  } else if (payload[0].second == "launch_sample_from_file") {
+    if (payload.size() < 2)
+      return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
+    launch_sample_from_file(payload[1].second);
     return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
   }
   return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
