@@ -22,12 +22,14 @@
 #define MSG_PAYLOAD_VAL "val"
 
 typedef enum {
+  MT_GUARD_LO = 0,
   // Invalid message.
-  INVALID,
+  MT_INVALID,
   // Get or set USRP configuration.
-  CONF,
+  MT_CONF,
   // Let USRP do some work.
-  WORK,
+  MT_WORK,
+  MT_GUARD_HI,
 } message_type;
 
 // The payload is an array of key-value pairs.

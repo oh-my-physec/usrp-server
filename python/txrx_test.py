@@ -10,7 +10,7 @@ socket.connect("tcp://localhost:5555")
 socket.send(b"""
 {
   "id": 1,
-  "type": "CONF",
+  "type": 2,
   "payload": [
      {"key": "tx_rate", "val": "20000000"},
      {"key": "rx_rate", "val": "20000000"},
@@ -33,7 +33,7 @@ print(str(message.decode()), flush=True)
 socket.send(b"""
 {
   "id": 2,
-  "type": "WORK",
+  "type": 3,
   "payload": [
     {"key": "funcname", "val" : "launch_sample_to_file"},
     {"key": "filename", "val" : "/tmp/mysine.data"}
@@ -49,7 +49,7 @@ time.sleep(0.1)
 socket.send(b"""
 {
  "id": 3,
-  "type": "WORK",
+  "type": 3,
   "payload": [
     {"key": "funcname", "val" : "launch_sample_from_file"},
     {"key": "filename", "val" : "/tmp/sine.data"}
@@ -65,7 +65,7 @@ print(str(message.decode()), flush=True)
 socket.send(b"""
 {
   "id": 4,
-  "type": "WORK",
+  "type": 3,
   "payload": [
     {"key": "funcname", "val" : "shutdown_sample_to_file"}
    ]

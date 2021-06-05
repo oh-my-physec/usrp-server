@@ -279,7 +279,7 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
 
   std::ofstream ofile(filename.c_str(), std::ofstream::binary);
   bool overflow_message = true;
-  double timeout = rx_settling_time + 0.1f;
+  double timeout = 0.1f;
 
   // Setup streaming
   uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
@@ -402,9 +402,9 @@ message usrp::process_work_req(message &msg) {
 }
 
 message usrp::handle_request(message &msg) {
-  if (msg.get_type() == mt::CONF) {
+  if (msg.get_type() == mt::MT_CONF) {
     return process_conf_req(msg);
-  } else if (msg.get_type() == mt::WORK) {
+  } else if (msg.get_type() == mt::MT_WORK) {
     return process_work_req(msg);
   }
   return message{msg.get_id(), msg.get_type(), {}};

@@ -27,6 +27,12 @@ static uint64_t get_uint64_or(const rj::Value &val, uint64_t fallback) {
   return fallback;
 }
 
+static uint32_t get_uint32_or(const rj::Value &val, uint32_t fallback) {
+  if (val.IsNumber())
+    return val.GetUint();
+  return fallback;
+}
+
 message::message(uint64_t id, mt type, message_payload payload)
   : id(id), type(type), payload(payload) {}
 
@@ -47,13 +53,10 @@ static uint64_t get_message_id(const rj::Value &val) {
 }
 
 static mt get_message_type(const rj::Value &val) {
-  // TODO: Replace if-else statement with a hash table.
-  const char *type = get_str_or(val, "");
-  if (strcmp(type, "CONF") == 0)
-    return mt::CONF;
-  else if (strcmp(type, "WORK") == 0)
-    return mt::WORK;
-  return mt::INVALID;
+  uint32_t type = get_uint32_or(val, mt::MT_INVALID);
+  if (type <= mt::MT_GUARD_LO || type >= mt::MT_GUARD_HI)
+    return mt::MT_INVALID;
+  return static_cast<mt>(type);
 }
 
 static message_payload get_message_payload(const rj::Value &val) {
@@ -78,13 +81,8 @@ static void create_message_id(rj::Value &obj, uint64_t id, rj::Document &d) {
 }
 
 static void create_message_type(rj::Value &obj, mt type, rj::Document &d) {
-  rj::Value v(rj::kStringType);
-  if (type == mt::CONF)
-    v.SetString("CONF");
-  else if (type == mt::WORK)
-    v.SetString("WORK");
-  else
-    v.SetString("INVALID");
+  rj::Value v(rj::kNumberType);
+  v.SetUint(type);
   obj.AddMember(rj::StringRef(MSG_TYPE), v, d.GetAllocator());
 }
 
@@ -124,7 +122,7 @@ std::string message::to_json(message &msg) {
   rj::Value msg_obj(rj::kObjectType);
   // msg_obj = {
   //   "id"      : id      :: uint64,
-  //   "type"    : type    :: string,
+  //   "type"    : type    :: uint32,
   //   "payload" : payload :: vector<pair<string, string>>,
   // }
   create_message_id(msg_obj, msg.get_id(), d);
