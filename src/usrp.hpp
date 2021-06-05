@@ -61,6 +61,8 @@ private:
     std::function<void(std::string&)> setter;
   };
   std::unordered_map<std::string, getter_setter_pair> getter_setter_pairs;
+  std::unordered_map<std::string,
+		     std::function<message(const message &)>> task_map;
 public:
   usrp(usrp &usrp) = delete;
   usrp(std::string device_args, std::string zmq_bind);
@@ -117,14 +119,15 @@ public:
   template <typename sample_type>
   void sample_from_file_generic(const std::string &filename) const;
   void sample_from_file(const std::string &filename) const;
-  void launch_sample_from_file(const std::string &filename);
+  message launch_sample_from_file(const message &msg);
   void shutdown_sample_from_file();
 
   template <typename sample_type>
   void sample_to_file_generic(const std::string &filename) const;
   void sample_to_file(const std::string &filename) const;
-  void launch_sample_to_file(const std::string &filename);
+  message launch_sample_to_file(const message &msg);
   void shutdown_sample_to_file();
+  message launch_shutdown_sample_to_file(const message &msg);
 
   void zmq_server_run();
   message handle_request(message &msg);

@@ -19,6 +19,9 @@ using mt = message_type;
               std::bind(&usrp::get_## name, this),                              \
 	      std::bind(&usrp::set_## name, this, std::placeholders::_1) } }
 
+#define TASK_PAIR(task)                                                         \
+  { #task, std::bind(&usrp::launch_## task, this, std::placeholders::_1) }
+
 usrp::usrp(std::string device_args, std::string zmq_bind) :
   device_args(device_args),
   zmq_bind(zmq_bind),
@@ -44,7 +47,15 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(tx_cpu_format),
     GETTER_SETTER_PAIR(tx_otw_format),
     GETTER_SETTER_PAIR(clock_source),
+  },
+  task_map{
+    TASK_PAIR(sample_to_file),
+    TASK_PAIR(shutdown_sample_to_file),
+    TASK_PAIR(sample_from_file),
   } {}
+
+#define STATUS_OK   "OK"
+#define STATUS_FAIL "FAIL"
 
 std::string usrp::get_pp_string() const {
   return device->get_pp_string();
@@ -227,6 +238,15 @@ void usrp::set_device_config(std::string &param, std::string &val) const {
   }
 }
 
+static std::string&
+get_from_payload_or(std::unordered_map<std::string, std::string> &m,
+		    std::string &&key, std::string &&fallback) {
+  auto It = m.find(key);
+  if (It != m.cend())
+    return It->second;
+  return fallback;
+}
+
 message_payload
 usrp::get_or_set_device_configs(message_payload &&payload) const {
   boost::unique_lock<boost::mutex> lk(device_lock);
@@ -246,6 +266,11 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   uhd::tx_metadata_t md;
   std::vector<sample_type> buffer(tx_sample_per_buffer);
   std::ifstream ifile(filename.c_str(), std::ifstream::binary);
+  if (!ifile) {
+    UHD_LOG_ERROR("TX-STREAM",
+		  "Cannot open file: " << filename << ".");
+    return;
+  }
 
   // Loop until the entire file is transmitted.
   while (!md.end_of_burst) {
@@ -330,7 +355,21 @@ bool usrp::rx_is_sampling_to_file() const {
   return sample_to_file_thread != nullptr;
 }
 
-void usrp::launch_sample_to_file(const std::string &filename) {
+message usrp::launch_sample_to_file(const message &msg) {
+  auto &payload = msg.get_payload_as_map();
+  std::string &filename = get_from_payload_or(payload, "filename",
+					      /*fallback=*/"");
+  if (filename == "")
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_FAIL},
+		    {"explain", "Missing argument: 'filename'"}}};
+
+  std::ofstream ofile(filename.c_str(), std::ofstream::binary);
+  if (!ofile)
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_FAIL},
+		    {"explain", "Cannot open file: " + filename}}};
+  ofile.close();
   boost::unique_lock<boost::mutex> lk(sample_to_file_thread_lock);
   if (sample_to_file_thread == nullptr) {
     // Spawn a thread to start sample_to_file work.
@@ -338,7 +377,12 @@ void usrp::launch_sample_to_file(const std::string &filename) {
     rx_keep_sampling = true;
     sample_to_file_thread =
       threads.create_thread(std::bind(&usrp::sample_to_file, this, filename));
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_OK}}};
   }
+  return message{msg.get_id(), msg.get_type(),
+		 {{"status", STATUS_FAIL},
+		  {"explain", "Task: 'sample_to_file' is running"}}};
 }
 
 void usrp::shutdown_sample_to_file() {
@@ -353,6 +397,12 @@ void usrp::shutdown_sample_to_file() {
   }
 }
 
+message usrp::launch_shutdown_sample_to_file(const message &msg) {
+  shutdown_sample_to_file();
+  return message{msg.get_id(), msg.get_type(),
+		 {{"status", STATUS_OK}}};
+}
+
 void usrp::sample_from_file(const std::string &filename) const {
   if (rx_cpu_format == "fc64")
     sample_from_file_generic<std::complex<double>>(filename);
@@ -362,8 +412,22 @@ void usrp::sample_from_file(const std::string &filename) const {
     sample_from_file_generic<std::complex<short>>(filename);
 }
 
-void usrp::launch_sample_from_file(const std::string &filename) {
+message usrp::launch_sample_from_file(const message &msg) {
+  auto &payload = msg.get_payload_as_map();
+  std::string &filename = get_from_payload_or(payload, "filename",
+					      /*fallback=*/"");
+  if (filename == "")
+    return {msg.get_id(), msg.get_type(),
+	    {{"status", STATUS_FAIL},
+	     {"explain", "Missing argument: 'filename'"}}};
+  std::ifstream ifile(filename.c_str(), std::ifstream::binary);
+  if (!ifile)
+    return {msg.get_id(), msg.get_type(),
+	    {{"status", STATUS_FAIL},
+	     {"explain", "Cannot open file: " + filename}}};
+  ifile.close();
   sample_from_file(filename);
+  return {msg.get_id(), msg.get_type(), {{"status", STATUS_OK}}};
 }
 
 void usrp::shutdown_sample_from_file() {
@@ -381,24 +445,24 @@ message usrp::process_conf_req(message &msg) {
 }
 
 message usrp::process_work_req(message &msg) {
-  std::vector<std::pair<std::string, std::string>> payload = msg.get_payload();
+  auto &payload = msg.get_payload_as_map();
   if (payload.size() == 0)
-    return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
-  if (payload[0].second == "launch_sample_to_file") {
-    if (payload.size() < 2)
-      return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
-    launch_sample_to_file(payload[1].second);
-    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
-  } else if (payload[0].second == "shutdown_sample_to_file") {
-    shutdown_sample_to_file();
-    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
-  } else if (payload[0].second == "launch_sample_from_file") {
-    if (payload.size() < 2)
-      return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
-    launch_sample_from_file(payload[1].second);
-    return message{msg.get_id(), msg.get_type(), {{"status", "ok"}}};
-  }
-  return message{msg.get_id(), msg.get_type(), {{"status", "fail"}}};
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_FAIL},
+		    {"explain", "The length of message.payload is 0"}}};
+
+  std::string &task_name = get_from_payload_or(payload, "task", "");
+  if (task_name == "")
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_FAIL},
+		    {"explain", "Missing argument: 'task'"}}};
+
+  auto It = task_map.find(task_name);
+  if (It == task_map.cend())
+    return message{msg.get_id(), msg.get_type(),
+		   {{"status", STATUS_FAIL},
+		    {"explain", "Unknown task: " + task_name}}};
+  return It->second(msg);
 }
 
 message usrp::handle_request(message &msg) {
@@ -428,7 +492,8 @@ void usrp::zmq_server_run() {
       std::string req_str = req.to_string();
       message msg = message::from_json(req_str);
       message response = handle_request(msg);
-      socket.send(zmq::buffer(message::to_json(response)), zmq::send_flags::none);
+      socket.send(zmq::buffer(message::to_json(response)),
+		  zmq::send_flags::none);
     }
   }
 }

@@ -35,7 +35,7 @@ socket.send(b"""
   "id": 2,
   "type": 3,
   "payload": [
-    {"key": "funcname", "val" : "launch_sample_to_file"},
+    {"key": "task", "val" : "sample_to_file"},
     {"key": "filename", "val" : "/tmp/mysine.data"}
    ]
 }""")
@@ -51,7 +51,7 @@ socket.send(b"""
  "id": 3,
   "type": 3,
   "payload": [
-    {"key": "funcname", "val" : "launch_sample_from_file"},
+    {"key": "task", "val" : "sample_from_file"},
     {"key": "filename", "val" : "/tmp/sine.data"}
    ]
 }""")
@@ -67,7 +67,7 @@ socket.send(b"""
   "id": 4,
   "type": 3,
   "payload": [
-    {"key": "funcname", "val" : "shutdown_sample_to_file"}
+    {"key": "task", "val" : "shutdown_sample_to_file"}
    ]
 }""")
 

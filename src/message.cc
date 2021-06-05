@@ -1,6 +1,5 @@
-#include <cstring>
 #include <string>
-#include <iostream>
+#include <unordered_map>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
@@ -46,6 +45,16 @@ mt message::get_type() const {
 
 message_payload message::get_payload() const {
   return payload;
+}
+
+std::unordered_map<std::string, std::string>&
+message::get_payload_as_map() const {
+  if (!cached) {
+    for (auto& KV : payload)
+      payload_cache.insert(KV);
+    cached = true;
+  }
+  return payload_cache;
 }
 
 static uint64_t get_message_id(const rj::Value &val) {

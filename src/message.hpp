@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <boost/optional.hpp>
 
 // The zmq server accepts JSON messages.
@@ -40,6 +41,9 @@ private:
   uint64_t id;
   message_type type;
   message_payload payload;
+
+  mutable bool cached = false;
+  mutable std::unordered_map<std::string, std::string> payload_cache;
 public:
   // Disable default message ctor.
   message() = delete;
@@ -47,6 +51,7 @@ public:
   uint64_t get_id() const;
   message_type get_type() const;
   message_payload get_payload() const;
+  std::unordered_map<std::string, std::string> &get_payload_as_map() const;
 
   static message from_json(std::string &json);
   static std::string to_json(message &msg);
