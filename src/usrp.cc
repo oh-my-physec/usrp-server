@@ -11,8 +11,10 @@
 #include <zmq.hpp>
 #include "usrp.hpp"
 #include "message.hpp"
+#include "wave_table.hpp"
 
 using mt = message_type;
+using wt = wave_type;
 
 #define GETTER_SETTER_PAIR(name)                                                \
   { #name, getter_setter_pair {                                                 \
@@ -137,85 +139,85 @@ std::string usrp::get_clock_source() const {
   return device->get_clock_source(/*mboard=*/0);
 }
 
-void usrp::set_pp_string(std::string &pp) const {
+void usrp::set_pp_string(std::string &pp) {
   /* DO NOTHING. Just work as a placeholder. */
 }
 
-void usrp::set_rx_antenna(std::string &ant) const {
+void usrp::set_rx_antenna(std::string &ant) {
   device->set_rx_antenna(ant);
 }
 
-void usrp::set_rx_bandwidth(std::string &bw) const {
+void usrp::set_rx_bandwidth(std::string &bw) {
   device->set_rx_bandwidth(std::stod(bw));
 }
 
-void usrp::set_rx_freq(std::string &freq) const {
+void usrp::set_rx_freq(std::string &freq) {
   uhd::tune_request_t target_freq(std::stod(freq));
   device->set_rx_freq(target_freq);
 }
 
-void usrp::set_rx_gain(std::string &gain) const {
+void usrp::set_rx_gain(std::string &gain) {
   device->set_rx_gain(std::stod(gain));
 }
 
-void usrp::set_rx_rate(std::string &rate) const {
+void usrp::set_rx_rate(std::string &rate) {
   device->set_rx_rate(std::stod(rate));
 }
 
-void usrp::set_rx_sample_per_buffer(std::string &spb) const {
+void usrp::set_rx_sample_per_buffer(std::string &spb) {
   rx_sample_per_buffer = std::stoll(spb);
 }
 
-void usrp::set_rx_settling_time(std::string &time) const {
+void usrp::set_rx_settling_time(std::string &time) {
   rx_settling_time = std::stod(time);
 }
 
-void usrp::set_rx_cpu_format(std::string &fmt) const {
+void usrp::set_rx_cpu_format(std::string &fmt) {
   rx_cpu_format = fmt;
 }
 
-void usrp::set_rx_otw_format(std::string &fmt) const {
+void usrp::set_rx_otw_format(std::string &fmt) {
   rx_otw_format = fmt;
 }
 
-void usrp::set_tx_antenna(std::string &ant) const {
+void usrp::set_tx_antenna(std::string &ant) {
   device->set_tx_antenna(ant);
 }
 
-void usrp::set_tx_bandwidth(std::string &bw) const {
+void usrp::set_tx_bandwidth(std::string &bw) {
   device->set_tx_bandwidth(std::stod(bw));
 }
 
-void usrp::set_tx_freq(std::string &freq) const {
+void usrp::set_tx_freq(std::string &freq) {
   uhd::tune_request_t target_freq(std::stod(freq));
   device->set_tx_freq(target_freq);
 }
 
-void usrp::set_tx_gain(std::string &gain) const {
+void usrp::set_tx_gain(std::string &gain) {
   device->set_tx_gain(std::stod(gain));
 }
 
-void usrp::set_tx_rate(std::string &rate) const {
+void usrp::set_tx_rate(std::string &rate) {
   device->set_tx_rate(std::stod(rate));
 }
 
-void usrp::set_tx_sample_per_buffer(std::string &spb) const {
+void usrp::set_tx_sample_per_buffer(std::string &spb) {
   tx_sample_per_buffer = std::stoll(spb);
 }
 
-void usrp::set_tx_settling_time(std::string &time) const {
+void usrp::set_tx_settling_time(std::string &time) {
   tx_settling_time = std::stod(time);
 }
 
-void usrp::set_tx_cpu_format(std::string &fmt) const {
+void usrp::set_tx_cpu_format(std::string &fmt) {
   tx_cpu_format = fmt;
 }
 
-void usrp::set_tx_otw_format(std::string &fmt) const {
+void usrp::set_tx_otw_format(std::string &fmt) {
   tx_otw_format = fmt;
 }
 
-void usrp::set_clock_source(std::string &clock_source) const {
+void usrp::set_clock_source(std::string &clock_source) {
   // We must check the clock_source or set_clock_source() will throw an
   // exception.
   if (clock_source != "internal" && clock_source != "external" &&
@@ -231,7 +233,7 @@ std::string usrp::get_device_config(std::string &param) const {
   return "";
 }
 
-void usrp::set_device_config(std::string &param, std::string &val) const {
+void usrp::set_device_config(std::string &param, std::string &val) {
   auto It = getter_setter_pairs.find(param);
   if (It != getter_setter_pairs.cend()) {
     It->second.setter(val);
@@ -248,7 +250,7 @@ get_from_payload_or(std::unordered_map<std::string, std::string> &m,
 }
 
 message_payload
-usrp::get_or_set_device_configs(message_payload &&payload) const {
+usrp::get_or_set_device_configs(message_payload &&payload) {
   boost::unique_lock<boost::mutex> lk(device_lock);
   for (uint64_t I = 0; I < payload.size(); ++I) {
     if (payload[I].second != "")

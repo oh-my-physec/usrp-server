@@ -19,8 +19,8 @@ private:
   mutable boost::mutex device_lock;
   uhd::usrp::multi_usrp::sptr device;
 
-  mutable size_t rx_sample_per_buffer;
-  mutable size_t tx_sample_per_buffer;
+  size_t rx_sample_per_buffer;
+  size_t tx_sample_per_buffer;
 
   // The CPU format is a string that describes the format of host memory.
   // Conversions for the following CPU formats have been implemented:
@@ -28,22 +28,22 @@ private:
   // fc32 - complex<float>
   // sc16 - complex<int>
   // sc8  - complex<int8_t>
-  mutable std::string rx_cpu_format = "fc32";
-  mutable std::string tx_cpu_format = "fc32";
+  std::string rx_cpu_format = "fc32";
+  std::string tx_cpu_format = "fc32";
   // The OTW format is a string that describes the format over-the-wire. The
   // following over-the-wire formats have been implemented:
   // sc16 - Q16  I16
   // sc8  - Q8_1 I8_1 Q8_0 I8_0
-  mutable std::string rx_otw_format = "sc16";
-  mutable std::string tx_otw_format = "sc16";
+  std::string rx_otw_format = "sc16";
+  std::string tx_otw_format = "sc16";
 
   // Settling time before receiving/transmitting signals.
-  mutable double rx_settling_time = 0.0;
-  mutable double tx_settling_time = 0.0;
+  double rx_settling_time = 0.0;
+  double tx_settling_time = 0.0;
 
   // When rx_keep_sampling is false, the receiver will stop sampling to file.
   // rx_keep_sampling is protected by the sample_to_file_thread_lock.
-  mutable bool rx_keep_sampling = false;
+  bool rx_keep_sampling = false;
 
   // Thread for sample_to_file.
   mutable boost::mutex sample_to_file_thread_lock;
@@ -89,30 +89,30 @@ public:
   std::string get_tx_otw_format() const;
   std::string get_clock_source() const;
 
-  void set_pp_string(std::string &pp) const;
-  void set_rx_antenna(std::string &ant) const;
-  void set_rx_bandwidth(std::string &bw) const;
-  void set_rx_freq(std::string &freq) const;
-  void set_rx_gain(std::string &gain) const;
-  void set_rx_rate(std::string &rate) const;
-  void set_rx_sample_per_buffer(std::string &spb) const;
-  void set_rx_settling_time(std::string &time) const;
-  void set_rx_cpu_format(std::string &fmt) const;
-  void set_rx_otw_format(std::string &fmt) const;
-  void set_tx_antenna(std::string &ant) const;
-  void set_tx_bandwidth(std::string &bw) const;
-  void set_tx_freq(std::string &freq) const;
-  void set_tx_gain(std::string &gain) const;
-  void set_tx_rate(std::string &rate) const;
-  void set_tx_sample_per_buffer(std::string &spb) const;
-  void set_tx_settling_time(std::string &time) const;
-  void set_tx_cpu_format(std::string &fmt) const;
-  void set_tx_otw_format(std::string &fmt) const;
-  void set_clock_source(std::string &clock_source) const;
+  void set_pp_string(std::string &pp);
+  void set_rx_antenna(std::string &ant);
+  void set_rx_bandwidth(std::string &bw);
+  void set_rx_freq(std::string &freq);
+  void set_rx_gain(std::string &gain);
+  void set_rx_rate(std::string &rate);
+  void set_rx_sample_per_buffer(std::string &spb);
+  void set_rx_settling_time(std::string &time);
+  void set_rx_cpu_format(std::string &fmt);
+  void set_rx_otw_format(std::string &fmt);
+  void set_tx_antenna(std::string &ant);
+  void set_tx_bandwidth(std::string &bw);
+  void set_tx_freq(std::string &freq);
+  void set_tx_gain(std::string &gain);
+  void set_tx_rate(std::string &rate);
+  void set_tx_sample_per_buffer(std::string &spb);
+  void set_tx_settling_time(std::string &time);
+  void set_tx_cpu_format(std::string &fmt);
+  void set_tx_otw_format(std::string &fmt);
+  void set_clock_source(std::string &clock_source);
 
   std::string get_device_config(std::string &param) const;
-  void set_device_config(std::string &param, std::string &val) const;
-  message_payload get_or_set_device_configs(message_payload &&params) const;
+  void set_device_config(std::string &param, std::string &val);
+  message_payload get_or_set_device_configs(message_payload &&params);
 
   bool rx_is_sampling_to_file() const;
 
