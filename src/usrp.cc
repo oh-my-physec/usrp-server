@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <string>
 #include <unordered_map>
 #include <boost/thread.hpp>
@@ -11,7 +12,6 @@
 #include <zmq.hpp>
 #include "usrp.hpp"
 #include "message.hpp"
-#include "wave_table.hpp"
 
 using mt = message_type;
 using wt = wave_type;
@@ -23,6 +23,8 @@ using wt = wave_type;
 
 #define TASK_PAIR(task)                                                         \
   { #task, std::bind(&usrp::launch_## task, this, std::placeholders::_1) }
+
+#define LOG_ERROR UHD_LOG_ERROR
 
 usrp::usrp(std::string device_args, std::string zmq_bind) :
   device_args(device_args),
@@ -48,6 +50,7 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(tx_settling_time),
     GETTER_SETTER_PAIR(tx_cpu_format),
     GETTER_SETTER_PAIR(tx_otw_format),
+    GETTER_SETTER_PAIR(tx_prefix_wave),
     GETTER_SETTER_PAIR(clock_source),
   },
   task_map{
@@ -135,6 +138,28 @@ std::string usrp::get_tx_otw_format() const {
   return tx_otw_format;
 }
 
+std::string usrp::get_tx_prefix_wave() const {
+  std::string prefix_wave;
+  if (tx_prefix_wave_enable)
+    prefix_wave += "1,";
+  else
+    prefix_wave += "0,";
+
+  prefix_wave += std::to_string(tx_prefix_wave_len) + ",";
+
+  switch (tx_prefix_wave_type) {
+  case wt::WT_SINE:
+    prefix_wave += "SINE,";
+    break;
+  default:
+    prefix_wave += "SINE,";
+    break;
+  }
+
+  prefix_wave += std::to_string(tx_prefix_wave_periods);
+  return prefix_wave;
+}
+
 std::string usrp::get_clock_source() const {
   return device->get_clock_source(/*mboard=*/0);
 }
@@ -217,6 +242,65 @@ void usrp::set_tx_otw_format(std::string &fmt) {
   tx_otw_format = fmt;
 }
 
+template <typename sample_type>
+void prepare_tx_prefix_wave_buffer(std::vector<uint8_t> &dst, wave_type type,
+				   size_t len, size_t periods) {
+  wave_table<sample_type> wt(type, len, /*ampl=*/1.0);
+  dst.reserve(wt.bytes() * periods);
+  dst.resize(wt.bytes() * periods);
+  uint64_t accu_bytes = 0;
+  for (uint64_t I = 0; I < periods; ++I) {
+    std::memcpy((char *)&dst[accu_bytes], (char *)&wt.get_buffer()[0],
+		wt.bytes());
+    accu_bytes += wt.bytes();
+  }
+}
+
+void usrp::set_tx_prefix_wave(std::string &prefix) {
+  std::stringstream ss(prefix);
+  uint32_t field_cnt = 0;
+  while (ss.good()) {
+    std::string substr;
+    std::getline(ss, substr, ',');
+
+    switch (field_cnt) {
+    case 0:
+      tx_prefix_wave_enable = std::stoi(substr);
+      break;
+    case 1:
+      tx_prefix_wave_len = std::stoll(substr);
+      break;
+    case 2:
+      // TODO: Add support for more wave types.
+      tx_prefix_wave_type = wt::WT_SINE;
+      break;
+    case 3:
+      tx_prefix_wave_periods = std::stoll(substr);
+    default:
+      // Do nothing.
+      break;
+    }
+
+    ++field_cnt;
+  }
+
+  // Prepare tx_prefix_wave_buffer.
+  if (tx_cpu_format == "fc64") {
+    prepare_tx_prefix_wave_buffer<double>(tx_prefix_wave_buffer,
+					  tx_prefix_wave_type,
+					  tx_prefix_wave_len,
+					  tx_prefix_wave_periods);
+  } else if (tx_cpu_format == "fc32") {
+    prepare_tx_prefix_wave_buffer<float>(tx_prefix_wave_buffer,
+					 tx_prefix_wave_type,
+					 tx_prefix_wave_len,
+					 tx_prefix_wave_periods);
+  } else {
+    LOG_ERROR("TX-CONFIG", "Prefix wave for " + tx_cpu_format +
+	      " is not supported");
+  }
+}
+
 void usrp::set_clock_source(std::string &clock_source) {
   // We must check the clock_source or set_clock_source() will throw an
   // exception.
@@ -260,6 +344,14 @@ usrp::get_or_set_device_configs(message_payload &&payload) {
   return payload;
 }
 
+static void check_sent_samples(size_t tx_samples_num, size_t samples_sent) {
+  if (samples_sent != tx_samples_num) {
+    LOG_ERROR("TX-STREAM",
+	      "The tx_stream timed out sending " << tx_samples_num
+	      << " samples (" << samples_sent << " sent).");
+  }
+}
+
 template <typename sample_type>
 void usrp::sample_from_file_generic(const std::string &filename) const {
   uhd::stream_args_t stream_args(tx_cpu_format, tx_otw_format);
@@ -269,9 +361,17 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   std::vector<sample_type> buffer(tx_sample_per_buffer);
   std::ifstream ifile(filename.c_str(), std::ifstream::binary);
   if (!ifile) {
-    UHD_LOG_ERROR("TX-STREAM",
-		  "Cannot open file: " << filename << ".");
+    LOG_ERROR("TX-STREAM",
+	      "Cannot open file: " << filename << ".");
     return;
+  }
+
+  if (tx_prefix_wave_enable) {
+    size_t tx_samples_num =
+      size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    size_t samples_sent =
+      tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
+    check_sent_samples(tx_samples_num, samples_sent);
   }
 
   // Loop until the entire file is transmitted.
@@ -282,12 +382,7 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
     md.end_of_burst = ifile.eof();
 
     const size_t samples_sent = tx_stream->send(&buffer[0], tx_samples_num, md);
-
-    if (samples_sent != tx_samples_num) {
-      UHD_LOG_ERROR("TX-STREAM",
-		    "The tx_stream timed out sending " << tx_samples_num
-		    << " samples (" << samples_sent << " sent).");
-    }
+    check_sent_samples(tx_samples_num, samples_sent);
   }
 
   ifile.close();
@@ -331,7 +426,7 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
     }
 
     if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
-      UHD_LOG_ERROR("RX-STREAM", md.strerror());
+      LOG_ERROR("RX-STREAM", md.strerror());
 
     ofile.write((const char *)&buffer[0], rx_samples_num * sizeof(sample_type));
   }

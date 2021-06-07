@@ -22,7 +22,8 @@ socket.send(b"""
      {"key": "rx_antenna", "val": "RX2"},
      {"key" : "rx_sample_per_buffer", "val":  "300000"},
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
-     {"key" : "clock_source", "val": "internal"}
+     {"key" : "clock_source", "val": "internal"},
+     {"key" : "tx_prefix_wave", "val" : "1,1024,SINE,10"}
    ]
 }""")
 
@@ -44,7 +45,7 @@ socket.send(b"""
 message = socket.recv()
 print(str(message.decode()), flush=True)
 
-time.sleep(0.1)
+time.sleep(0.05)
 
 socket.send(b"""
 {
@@ -60,7 +61,7 @@ socket.send(b"""
 message = socket.recv()
 print(str(message.decode()), flush=True)
 
-#time.sleep(1)
+time.sleep(0.02)
 
 socket.send(b"""
 {

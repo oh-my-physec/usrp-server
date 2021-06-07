@@ -7,6 +7,7 @@
 #include <uhd/usrp/multi_usrp.hpp>
 #include <zmq.hpp>
 #include "message.hpp"
+#include "wave_table.hpp"
 
 class usrp {
 private:
@@ -40,6 +41,12 @@ private:
   // Settling time before receiving/transmitting signals.
   double rx_settling_time = 0.0;
   double tx_settling_time = 0.0;
+
+  bool tx_prefix_wave_enable;
+  size_t tx_prefix_wave_len;
+  wave_type tx_prefix_wave_type;
+  size_t tx_prefix_wave_periods;
+  std::vector<uint8_t> tx_prefix_wave_buffer;
 
   // When rx_keep_sampling is false, the receiver will stop sampling to file.
   // rx_keep_sampling is protected by the sample_to_file_thread_lock.
@@ -87,6 +94,7 @@ public:
   std::string get_tx_settling_time() const;
   std::string get_tx_cpu_format() const;
   std::string get_tx_otw_format() const;
+  std::string get_tx_prefix_wave() const;
   std::string get_clock_source() const;
 
   void set_pp_string(std::string &pp);
@@ -108,6 +116,7 @@ public:
   void set_tx_settling_time(std::string &time);
   void set_tx_cpu_format(std::string &fmt);
   void set_tx_otw_format(std::string &fmt);
+  void set_tx_prefix_wave(std::string &prefix);
   void set_clock_source(std::string &clock_source);
 
   std::string get_device_config(std::string &param) const;

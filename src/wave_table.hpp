@@ -36,12 +36,20 @@ public:
     return buffer.size();
   }
 
+  size_t bytes() const {
+    return buffer.size() * sizeof(std::complex<sample_type>);
+  }
+
   const std::complex<sample_type>& operator[](size_t index) const {
     return buffer[index];
   }
 
   std::complex<sample_type>& operator[](size_t index) {
     return buffer[index];
+  }
+
+  std::vector<std::complex<sample_type>> &get_buffer() {
+    return buffer;
   }
 };
 
