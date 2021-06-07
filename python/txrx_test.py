@@ -23,7 +23,7 @@ socket.send(b"""
      {"key" : "rx_sample_per_buffer", "val":  "300000"},
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
      {"key" : "clock_source", "val": "internal"},
-     {"key" : "tx_prefix_wave", "val" : "1,1024,SINE,10"}
+     {"key" : "tx_prefix_wave", "val" : "1,256,SINE,20"}
    ]
 }""")
 
@@ -45,7 +45,7 @@ socket.send(b"""
 message = socket.recv()
 print(str(message.decode()), flush=True)
 
-time.sleep(0.05)
+time.sleep(0.07)
 
 socket.send(b"""
 {

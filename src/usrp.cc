@@ -26,6 +26,13 @@ using wt = wave_type;
 
 #define LOG_ERROR UHD_LOG_ERROR
 
+template<typename T>
+void dump_buffer_to_file(std::string &&filename, const std::vector<T> &buffer) {
+  std::ofstream ofile(filename.c_str(), std::ofstream::binary);
+  ofile.write((char *)&buffer[0], buffer.size() * sizeof(T));
+  ofile.close();
+}
+
 usrp::usrp(std::string device_args, std::string zmq_bind) :
   device_args(device_args),
   zmq_bind(zmq_bind),
@@ -382,6 +389,14 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
     md.end_of_burst = ifile.eof();
 
     const size_t samples_sent = tx_stream->send(&buffer[0], tx_samples_num, md);
+    check_sent_samples(tx_samples_num, samples_sent);
+  }
+
+  if (tx_prefix_wave_enable) {
+    size_t tx_samples_num =
+      size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    size_t samples_sent =
+      tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
   }
 

@@ -25,7 +25,7 @@ public:
       for (size_t I = 0; I < len; ++I) {
 	std::complex<sample_type> p =
 	  ampl * std::exp(J * static_cast<sample_type>(tau * I / len));
-	buffer[I] = std::real(p);
+	buffer[I] = std::imag(p);
       }
 
       power_dbfs = static_cast<double>(20 * std::log10(ampl));
