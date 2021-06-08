@@ -10,6 +10,7 @@
 #include <boost/chrono.hpp>
 #include <uhd/types/tune_request.hpp>
 #include <zmq.hpp>
+#include <fftw3.h>
 #include "usrp.hpp"
 #include "message.hpp"
 
@@ -53,6 +54,79 @@ static void check_sent_samples(size_t tx_samples_num, size_t samples_sent) {
   }
 }
 
+template <typename sample_type>
+static void prepare_tx_prefix_wave_buffer(std::vector<uint8_t> &dst,
+					  wave_type type,
+					  size_t len, size_t periods) {
+  wave_table<sample_type> wt(type, len, /*ampl=*/1.0);
+  dst.reserve(wt.bytes() * periods);
+  dst.resize(wt.bytes() * periods);
+  uint64_t accu_bytes = 0;
+  for (uint64_t I = 0; I < periods; ++I) {
+    std::memcpy((char *)&dst[accu_bytes], (char *)&wt.get_buffer()[0],
+		wt.bytes());
+    accu_bytes += wt.bytes();
+  }
+}
+
+static void compute_fft_1d(std::vector<std::complex<short>> &fft_in,
+			   std::vector<std::complex<short>> &fft_out,
+			   size_t offset, size_t fft_length) {
+  // We don't want to implement this function.
+}
+
+static void compute_fft_1d(std::vector<std::complex<double>> &fft_in,
+			   std::vector<std::complex<double>> &fft_out,
+			   size_t offset, size_t fft_length) {
+  // TODO: Add support for computing FFT for double precision floats.
+}
+
+static void compute_fft_1d(std::vector<std::complex<float>> &fft_in,
+			   std::vector<std::complex<float>> &fft_out,
+			   size_t offset, size_t fft_length) {
+  size_t fft_in_size = fft_in.size();
+  fftwf_complex *in, *out;
+  fftwf_plan p;
+  if (fft_out.size() < fft_length) {
+    LOG_ERROR("FFT", "Output buffer isn't large enough");
+    return;
+  }
+  out = reinterpret_cast<fftwf_complex *>(&fft_out[0]);
+
+  bool input_array_fitted_in = offset + fft_length < fft_in_size;
+  if (!input_array_fitted_in) {
+    // The size of the input array is smaller than fft_length,
+    // We just copy them into the fft_out array.
+    std::memcpy((char *)&fft_out[0], (char *)&fft_in[offset],
+		fft_in_size - offset);
+    for (size_t I = fft_in_size - offset; I < fft_out.size(); ++I)
+      fft_out[I] = {0.0, 0.0};
+    in = reinterpret_cast<fftwf_complex *>(&fft_out[0]);
+  } else {
+    in = reinterpret_cast<fftwf_complex *>(&fft_in[offset]);
+  }
+
+  p = fftwf_plan_dft_1d(fft_length, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+
+  // Clean up.
+  fftwf_execute(p);
+  fftwf_destroy_plan(p);
+}
+
+template <typename sample_type>
+static bool detect_sine(std::vector<sample_type> &fft_in, size_t win_lo,
+			size_t win_hi, double threshold) {
+  double total_area = 0.001;
+  double interested_area = 0.0;
+  for (size_t I = 0; I < fft_in.size(); ++I) {
+    double height = std::abs(fft_in[I]);
+    total_area += height;
+    if (I >= win_lo && I <= win_hi) {
+      interested_area += height;
+    }
+  }
+  return (interested_area / total_area) >= threshold;
+}
 } // end anonymous namespace.
 
 usrp::usrp(std::string device_args, std::string zmq_bind) :
@@ -271,20 +345,6 @@ void usrp::set_tx_otw_format(std::string &fmt) {
   tx_otw_format = fmt;
 }
 
-template <typename sample_type>
-void prepare_tx_prefix_wave_buffer(std::vector<uint8_t> &dst, wave_type type,
-				   size_t len, size_t periods) {
-  wave_table<sample_type> wt(type, len, /*ampl=*/1.0);
-  dst.reserve(wt.bytes() * periods);
-  dst.resize(wt.bytes() * periods);
-  uint64_t accu_bytes = 0;
-  for (uint64_t I = 0; I < periods; ++I) {
-    std::memcpy((char *)&dst[accu_bytes], (char *)&wt.get_buffer()[0],
-		wt.bytes());
-    accu_bytes += wt.bytes();
-  }
-}
-
 void usrp::set_tx_prefix_wave(std::string &prefix) {
   std::stringstream ss(prefix);
   uint32_t field_cnt = 0;
@@ -418,6 +478,7 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
   // Prepare buffers for received samples and metadata.
   uhd::rx_metadata_t md;
   std::vector<sample_type> buffer(rx_sample_per_buffer);
+  std::vector<sample_type> fft_out_buffer(rx_guarded_wave_fft_size);
 
   std::ofstream ofile(filename.c_str(), std::ofstream::binary);
   bool overflow_message = true;
@@ -431,11 +492,14 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
   stream_cmd.time_spec = uhd::time_spec_t();
   rx_stream->issue_stream_cmd(stream_cmd);
 
+  // These flags are for detecting guard intervals.
+  bool guard_1 = false;
+  bool desired_samples = false;
+  bool guard_2 = false;
+
   while (rx_keep_sampling) {
     size_t rx_samples_num = rx_stream->recv(&buffer[0], rx_sample_per_buffer,
 					    md, timeout);
-    // Small timeout for subsequent receiving.
-    timeout = 0.1f;
 
     if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) {
       if (overflow_message) {
@@ -448,7 +512,39 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
     if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
       LOG_ERROR("RX-STREAM", md.strerror());
 
-    ofile.write((const char *)&buffer[0], rx_samples_num * sizeof(sample_type));
+    if (!rx_guarded_wave_dump) {
+      ofile.write((const char *)&buffer[0],
+		  rx_samples_num * sizeof(sample_type));
+    } else {
+      for (size_t offset = 0; offset < rx_samples_num;
+	   offset += rx_guarded_wave_fft_size) {
+	// Do fft.
+	compute_fft_1d(buffer, fft_out_buffer, offset,
+		       rx_guarded_wave_fft_size);
+
+	// These values are carefully tested, DONNOT modify them unless you know
+	// what you are doing!
+	bool is_sine = detect_sine<sample_type>(fft_out_buffer,
+						/*win_lo=*/9,
+						/*win_hi=*/11,
+						/*threshold=*/0.05);
+	if (!guard_1 && is_sine) {
+	  guard_1 = true;
+	}
+
+	if (guard_1 && !desired_samples && !is_sine)
+	  desired_samples = true;
+
+	if (guard_1 && !guard_2) {
+	  ofile.write((const char *)&buffer[offset],
+		      std::min(rx_guarded_wave_fft_size,
+			       buffer.size() - offset) * sizeof(sample_type));
+	}
+
+	if (desired_samples && is_sine)
+	  guard_2 = true;
+      }
+    }
   }
 
   // Shutdown rx.

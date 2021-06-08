@@ -23,7 +23,7 @@ socket.send(b"""
      {"key" : "rx_sample_per_buffer", "val":  "300000"},
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
      {"key" : "clock_source", "val": "internal"},
-     {"key" : "tx_prefix_wave", "val" : "1,256,SINE,20"}
+     {"key" : "tx_prefix_wave", "val" : "1,128,SINE,20"}
    ]
 }""")
 

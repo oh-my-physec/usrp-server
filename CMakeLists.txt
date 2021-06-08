@@ -19,15 +19,26 @@ find_package(UHD 4.0.0 REQUIRED)
 
 find_package(PkgConfig)
 pkg_check_modules(PC_ZeroMQ QUIET zmq)
+pkg_check_modules(PC_FFTW3 QUIET fftw3)
 
 find_path(ZEROMQ_INCLUDE_DIR
     NAMES zmq.hpp
     PATHS ${PC_ZeroMQ_INCLUDE_DIRS}
 )
 
+find_path(FFTW3_INCLUDE_DIR
+    NAMES fftw3.h
+    PATHS ${PC_FFTW3_INCLUDE_DIRS}
+)
+
 find_library(ZEROMQ_LIBRARY
     NAMES zmq
     PATHS ${PC_ZeroMQ_LIBRARY_DIRS}
+)
+
+find_library(FFTW3_LIBRARY
+    NAMES fftw3
+    PATHS ${PC_FFTW3_LIBRARY_DIRS}
 )
 
 # This example also requires Boost.
@@ -46,8 +57,9 @@ include_directories(
     ${Boost_INCLUDE_DIRS}
     ${UHD_INCLUDE_DIRS}
     ${ZEROMQ_INCLUDE_DIR}
+    ${FFTW3_INCLUDE_DIR}
 )
-link_directories(${Boost_LIBRARY_DIRS} ${ZEROMQ_LIBRARY_DIR})
+link_directories(${Boost_LIBRARY_DIRS} ${ZEROMQ_LIBRARY_DIR} ${FFTW3_LIBRARY_DIR})
 
 ### Make the executable #######################################################
 add_executable(usrp_server src/main.cc src/options.cc src/usrp.cc src/message.cc)
@@ -58,7 +70,10 @@ set(CMAKE_BUILD_TYPE "Release")
 # anything else we need (in this case, some Boost libraries):
 if(NOT UHD_USE_STATIC_LIBS)
     message(STATUS "Linking against shared UHD library.")
-    target_link_libraries(usrp_server ${UHD_LIBRARIES} ${Boost_LIBRARIES} ${ZEROMQ_LIBRARY})
+    target_link_libraries(usrp_server ${UHD_LIBRARIES}
+                                      ${Boost_LIBRARIES}
+				      ${ZEROMQ_LIBRARY}
+				      fftw3 fftw3f)
 else(NOT UHD_USE_STATIC_LIBS)
     message(STATUS "Linking against static UHD library.")
     target_link_libraries(usrp_server
@@ -69,5 +84,6 @@ else(NOT UHD_USE_STATIC_LIBS)
         # UHD as well, because the dependencies don't get resolved automatically
         ${UHD_STATIC_LIB_DEPS}
 	${ZEROMQ_LIBRARY}
+	fftw3 fftw3f
     )
 endif(NOT UHD_USE_STATIC_LIBS)

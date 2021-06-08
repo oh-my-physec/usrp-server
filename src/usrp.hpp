@@ -42,11 +42,20 @@ private:
   double rx_settling_time = 0.0;
   double tx_settling_time = 0.0;
 
-  bool tx_prefix_wave_enable;
-  size_t tx_prefix_wave_len;
-  wave_type tx_prefix_wave_type;
-  size_t tx_prefix_wave_periods;
+  // Add prefix waveform to TX signals.
+  // These default values have been tested.
+  bool tx_prefix_wave_enable = false;
+  size_t tx_prefix_wave_len = 64;
+  wave_type tx_prefix_wave_type = wave_type::WT_SINE;
+  size_t tx_prefix_wave_periods = 20;
   std::vector<uint8_t> tx_prefix_wave_buffer;
+
+  // Dump the samples guarded by prefix waves.
+  bool rx_guarded_wave_dump = true;
+  size_t rx_guarded_wave_fft_size = 1024;
+  size_t rx_guarded_wave_fft_win_lo = 9;
+  size_t rx_guarded_wave_fft_win_hi = 11;
+  double rx_guarded_wave_fft_threshold = 0.5;
 
   // When rx_keep_sampling is false, the receiver will stop sampling to file.
   // rx_keep_sampling is protected by the sample_to_file_thread_lock.
