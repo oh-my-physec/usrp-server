@@ -438,6 +438,7 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
     return;
   }
 
+  bool end_of_burst = false;
   if (tx_prefix_wave_enable) {
     size_t tx_samples_num =
       size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
@@ -447,11 +448,12 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   }
 
   // Loop until the entire file is transmitted.
-  while (!md.end_of_burst) {
+  while (!end_of_burst) {
     ifile.read((char *)&buffer[0], buffer.size() * sizeof(sample_type));
     size_t tx_samples_num = size_t(ifile.gcount() / sizeof(sample_type));
 
-    md.end_of_burst = ifile.eof();
+    end_of_burst = ifile.eof();
+    md.end_of_burst = !tx_prefix_wave_enable && end_of_burst;
 
     const size_t samples_sent = tx_stream->send(&buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
@@ -460,6 +462,7 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   if (tx_prefix_wave_enable) {
     size_t tx_samples_num =
       size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    md.end_of_burst = true;
     size_t samples_sent =
       tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
