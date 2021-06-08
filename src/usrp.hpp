@@ -53,8 +53,8 @@ private:
   // Dump the samples guarded by prefix waves.
   bool rx_guarded_wave_dump = true;
   size_t rx_guarded_wave_fft_size = 1024;
-  size_t rx_guarded_wave_fft_win_lo = 9;
-  size_t rx_guarded_wave_fft_win_hi = 11;
+  size_t rx_guarded_wave_fft_win_lo = 8;
+  size_t rx_guarded_wave_fft_win_hi = 12;
   double rx_guarded_wave_fft_threshold = 0.5;
 
   // When rx_keep_sampling is false, the receiver will stop sampling to file.

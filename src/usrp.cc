@@ -431,6 +431,7 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
 
   uhd::tx_metadata_t md;
   std::vector<sample_type> buffer(tx_sample_per_buffer);
+  std::vector<sample_type> null_buffer(tx_sample_per_buffer);
   std::ifstream ifile(filename.c_str(), std::ifstream::binary);
   if (!ifile) {
     LOG_ERROR("TX-STREAM",
@@ -440,9 +441,15 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
 
   bool end_of_burst = false;
   if (tx_prefix_wave_enable) {
-    size_t tx_samples_num =
-      size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    // Firstly, we send a buffer of zero values.
+    size_t tx_samples_num = null_buffer.size();
     size_t samples_sent =
+      tx_stream->send((const char *)&null_buffer[0], tx_samples_num, md);
+    check_sent_samples(tx_samples_num, samples_sent);
+
+    tx_samples_num =
+      size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    samples_sent =
       tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
   }
@@ -460,9 +467,9 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   }
 
   if (tx_prefix_wave_enable) {
+    md.end_of_burst = true;
     size_t tx_samples_num =
       size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
-    md.end_of_burst = true;
     size_t samples_sent =
       tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
