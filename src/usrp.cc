@@ -26,12 +26,34 @@ using wt = wave_type;
 
 #define LOG_ERROR UHD_LOG_ERROR
 
+namespace {
+
 template<typename T>
-void dump_buffer_to_file(std::string &&filename, const std::vector<T> &buffer) {
+static void dump_buffer_to_file(std::string &&filename,
+				const std::vector<T> &buffer) {
   std::ofstream ofile(filename.c_str(), std::ofstream::binary);
   ofile.write((char *)&buffer[0], buffer.size() * sizeof(T));
   ofile.close();
 }
+
+static std::string&
+get_from_payload_or(std::unordered_map<std::string, std::string> &m,
+		    std::string &&key, std::string &&fallback) {
+  auto It = m.find(key);
+  if (It != m.cend())
+    return It->second;
+  return fallback;
+}
+
+static void check_sent_samples(size_t tx_samples_num, size_t samples_sent) {
+  if (samples_sent != tx_samples_num) {
+    LOG_ERROR("TX-STREAM",
+	      "The tx_stream timed out sending " << tx_samples_num
+	      << " samples (" << samples_sent << " sent).");
+  }
+}
+
+} // end anonymous namespace.
 
 usrp::usrp(std::string device_args, std::string zmq_bind) :
   device_args(device_args),
@@ -331,15 +353,6 @@ void usrp::set_device_config(std::string &param, std::string &val) {
   }
 }
 
-static std::string&
-get_from_payload_or(std::unordered_map<std::string, std::string> &m,
-		    std::string &&key, std::string &&fallback) {
-  auto It = m.find(key);
-  if (It != m.cend())
-    return It->second;
-  return fallback;
-}
-
 message_payload
 usrp::get_or_set_device_configs(message_payload &&payload) {
   boost::unique_lock<boost::mutex> lk(device_lock);
@@ -349,14 +362,6 @@ usrp::get_or_set_device_configs(message_payload &&payload) {
     payload[I].second = get_device_config(payload[I].first);
   }
   return payload;
-}
-
-static void check_sent_samples(size_t tx_samples_num, size_t samples_sent) {
-  if (samples_sent != tx_samples_num) {
-    LOG_ERROR("TX-STREAM",
-	      "The tx_stream timed out sending " << tx_samples_num
-	      << " samples (" << samples_sent << " sent).");
-  }
 }
 
 template <typename sample_type>
