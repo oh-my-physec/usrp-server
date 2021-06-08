@@ -61,8 +61,6 @@ socket.send(b"""
 message = socket.recv()
 print(str(message.decode()), flush=True)
 
-time.sleep(0.02)
-
 socket.send(b"""
 {
   "id": 4,
