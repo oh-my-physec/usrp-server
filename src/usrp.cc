@@ -144,6 +144,7 @@ usrp::usrp(std::string device_args, std::string zmq_bind) :
     GETTER_SETTER_PAIR(rx_settling_time),
     GETTER_SETTER_PAIR(rx_cpu_format),
     GETTER_SETTER_PAIR(rx_otw_format),
+    GETTER_SETTER_PAIR(rx_maximum_samples),
     GETTER_SETTER_PAIR(tx_antenna),
     GETTER_SETTER_PAIR(tx_bandwidth),
     GETTER_SETTER_PAIR(tx_freq),
@@ -203,6 +204,10 @@ std::string usrp::get_rx_cpu_format() const {
 
 std::string usrp::get_rx_otw_format() const {
   return rx_otw_format;
+}
+
+std::string usrp::get_rx_maximum_samples() const {
+  return std::to_string(rx_maximum_samples);
 }
 
 std::string usrp::get_tx_antenna() const {
@@ -306,6 +311,10 @@ void usrp::set_rx_cpu_format(std::string &fmt) {
 
 void usrp::set_rx_otw_format(std::string &fmt) {
   rx_otw_format = fmt;
+}
+
+void usrp::set_rx_maximum_samples(std::string &samples) {
+  rx_maximum_samples = std::stoll(samples);
 }
 
 void usrp::set_tx_antenna(std::string &ant) {
@@ -506,6 +515,7 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
   bool guard_1 = false;
   bool desired_samples = false;
   bool guard_2 = false;
+  size_t samples_cnt = 0;
 
   while (rx_keep_sampling) {
     size_t rx_samples_num = rx_stream->recv(&buffer[0], rx_sample_per_buffer,
@@ -545,10 +555,12 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
 	if (guard_1 && !desired_samples && !is_sine)
 	  desired_samples = true;
 
-	if (guard_1 && !guard_2) {
+	if (guard_1 && !guard_2 && samples_cnt < rx_maximum_samples) {
+	  size_t curr_samples_cnt = std::min(rx_guarded_wave_fft_size,
+					     buffer.size() - offset);
 	  ofile.write((const char *)&buffer[offset],
-		      std::min(rx_guarded_wave_fft_size,
-			       buffer.size() - offset) * sizeof(sample_type));
+		      curr_samples_cnt * sizeof(sample_type));
+	  samples_cnt += curr_samples_cnt;
 	}
 
 	if (desired_samples && is_sine)

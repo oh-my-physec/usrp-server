@@ -52,6 +52,7 @@ private:
 
   // Dump the samples guarded by prefix waves.
   bool rx_guarded_wave_dump = true;
+  size_t rx_maximum_samples = 0;
   size_t rx_guarded_wave_fft_size = 1024;
   size_t rx_guarded_wave_fft_win_lo = 8;
   size_t rx_guarded_wave_fft_win_hi = 12;
@@ -94,6 +95,7 @@ public:
   std::string get_rx_settling_time() const;
   std::string get_rx_cpu_format() const;
   std::string get_rx_otw_format() const;
+  std::string get_rx_maximum_samples() const;
   std::string get_tx_antenna() const;
   std::string get_tx_bandwidth() const;
   std::string get_tx_freq() const;
@@ -116,6 +118,7 @@ public:
   void set_rx_settling_time(std::string &time);
   void set_rx_cpu_format(std::string &fmt);
   void set_rx_otw_format(std::string &fmt);
+  void set_rx_maximum_samples(std::string &samples);
   void set_tx_antenna(std::string &ant);
   void set_tx_bandwidth(std::string &bw);
   void set_tx_freq(std::string &freq);
