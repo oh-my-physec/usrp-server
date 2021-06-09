@@ -12,10 +12,10 @@ socket.send(b"""
   "id" : 1,
   "type" : 2,
   "payload" : [
-     {"key" : "tx_rate", "val": "20000000"},
-     {"key" : "rx_rate", "val": "20000000"},
-     {"key" : "tx_bandwidth", "val": "20000000"},
-     {"key" : "rx_bandwidth", "val": "20000000"},
+     {"key" : "tx_rate", "val": "25000000"},
+     {"key" : "rx_rate", "val": "25000000"},
+     {"key" : "tx_bandwidth", "val": "25000000"},
+     {"key" : "rx_bandwidth", "val": "25000000"},
      {"key" : "tx_freq", "val": "2500000000"},
      {"key" : "rx_freq", "val": "2500000000"},
      {"key" : "tx_antenna", "val": "TX/RX"},
@@ -24,7 +24,7 @@ socket.send(b"""
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
      {"key" : "clock_source", "val": "internal"},
      {"key" : "tx_prefix_wave", "val" : "1,20,SINE,20"},
-     {"key" : "rx_maximum_samples", "val" : "2000"}
+     {"key" : "rx_maximum_samples", "val" : "2200"}
    ]
 }""")
 
@@ -54,7 +54,7 @@ for i in range(10):
       "type": 3,
       "payload": [
         {"key": "task", "val" : "sample_from_file"},
-        {"key": "filename", "val" : "/tmp/filesource.data"}
+        {"key": "filename", "val" : "/tmp/mseq.data"}
        ]
     }""")
 
