@@ -116,16 +116,10 @@ static void compute_fft_1d(std::vector<std::complex<float>> &fft_in,
 template <typename sample_type>
 static bool detect_sine(std::vector<sample_type> &fft_in, size_t win_lo,
 			size_t win_hi, double threshold) {
-  double total_area = 0.001;
-  double interested_area = 0.0;
-  for (size_t I = 0; I < fft_in.size(); ++I) {
-    double height = std::abs(fft_in[I]);
-    total_area += height;
-    if (I >= win_lo && I <= win_hi) {
-      interested_area += height;
-    }
-  }
-  return (interested_area / total_area) >= threshold;
+  double sum = 0.0;
+  for (size_t I = win_lo; I <= win_hi; ++I)
+    sum += std::abs(fft_in[I]);
+  return (sum / (win_hi - win_lo + 1)) > threshold;
 }
 } // end anonymous namespace.
 
@@ -448,7 +442,6 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
     return;
   }
 
-  bool end_of_burst = false;
   if (tx_prefix_wave_enable) {
     // Firstly, we send a buffer of zero values.
     size_t tx_samples_num = null_buffer.size();
@@ -464,12 +457,13 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
   }
 
   // Loop until the entire file is transmitted.
+  bool end_of_burst = false;
   while (!end_of_burst) {
     ifile.read((char *)&buffer[0], buffer.size() * sizeof(sample_type));
     size_t tx_samples_num = size_t(ifile.gcount() / sizeof(sample_type));
 
     end_of_burst = ifile.eof();
-    md.end_of_burst = !tx_prefix_wave_enable && end_of_burst;
+    md.end_of_burst = end_of_burst && !tx_prefix_wave_enable;
 
     const size_t samples_sent = tx_stream->send(&buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
@@ -477,10 +471,9 @@ void usrp::sample_from_file_generic(const std::string &filename) const {
 
   if (tx_prefix_wave_enable) {
     md.end_of_burst = true;
-    size_t tx_samples_num =
-      size_t(tx_prefix_wave_buffer.size() / sizeof(sample_type));
+    size_t tx_samples_num = null_buffer.size();
     size_t samples_sent =
-      tx_stream->send(&tx_prefix_wave_buffer[0], tx_samples_num, md);
+      tx_stream->send((const char *)&null_buffer[0], tx_samples_num, md);
     check_sent_samples(tx_samples_num, samples_sent);
   }
 
@@ -513,8 +506,6 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
 
   // These flags are for detecting guard intervals.
   bool guard_1 = false;
-  bool desired_samples = false;
-  bool guard_2 = false;
   size_t samples_cnt = 0;
 
   while (rx_keep_sampling) {
@@ -544,27 +535,22 @@ void usrp::sample_to_file_generic(const std::string &filename) const {
 
 	// These values are carefully tested, DONNOT modify them unless you know
 	// what you are doing!
+	size_t fft_size = rx_guarded_wave_fft_size;
+	size_t mid_freq = (size_t) fft_size / tx_prefix_wave_len;
 	bool is_sine = detect_sine<sample_type>(fft_out_buffer,
-						/*win_lo=*/9,
-						/*win_hi=*/11,
-						/*threshold=*/0.05);
-	if (!guard_1 && is_sine) {
+						/*win_lo=*/mid_freq - 1,
+						/*win_hi=*/mid_freq + 1,
+						/*threshold=*/0.7);
+	if (!guard_1 && is_sine)
 	  guard_1 = true;
-	}
 
-	if (guard_1 && !desired_samples && !is_sine)
-	  desired_samples = true;
-
-	if (guard_1 && !guard_2 && samples_cnt < rx_maximum_samples) {
+	if (guard_1 && samples_cnt < rx_maximum_samples) {
 	  size_t curr_samples_cnt = std::min(rx_guarded_wave_fft_size,
 					     buffer.size() - offset);
 	  ofile.write((const char *)&buffer[offset],
 		      curr_samples_cnt * sizeof(sample_type));
 	  samples_cnt += curr_samples_cnt;
 	}
-
-	if (desired_samples && is_sine)
-	  guard_2 = true;
       }
     }
   }

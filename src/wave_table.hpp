@@ -6,6 +6,7 @@
 
 typedef enum {
   WT_SINE,
+  WT_MSEQ,
 } wave_type;
 
 template <typename sample_type>

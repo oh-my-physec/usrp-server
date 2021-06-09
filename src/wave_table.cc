@@ -19,15 +19,26 @@ static void gen_sine_wave(const sample_type ampl, size_t len,
     buffer[I] = std::real(p);
   }
 }
+
+template <typename sample_type>
+static void gen_m_seq_wave(const sample_type ampl, size_t len,
+			   std::vector<std::complex<sample_type>> &buffer) {
+
+}
 } // end anonymous namespace.
 
 template <typename sample_type>
 wave_table<sample_type>::wave_table(wave_type wt, size_t len,
 				    const sample_type ampl)
   : buffer(len, {0.0, 0.0}) {
-  if (wt == wave_type::WT_SINE) {
+  switch (wt) {
+  case wave_type::WT_SINE:
     gen_sine_wave<sample_type>(ampl, len, buffer);
     power_dbfs = static_cast<double>(20 * std::log10(ampl));
+    break;
+  case wave_type::WT_MSEQ:
+    gen_m_seq_wave<sample_type>(ampl, len, buffer);
+    break;
   }
 }
 
