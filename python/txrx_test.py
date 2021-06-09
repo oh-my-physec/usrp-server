@@ -24,7 +24,7 @@ socket.send(b"""
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
      {"key" : "clock_source", "val": "internal"},
      {"key" : "tx_prefix_wave", "val" : "1,128,SINE,15"},
-     {"key" : "rx_maximum_samples", "val" : "6000"}
+     {"key" : "rx_maximum_samples", "val" : "7000"}
    ]
 }""")
 
@@ -62,7 +62,7 @@ socket.send(b"""
 message = socket.recv()
 print(str(message.decode()), flush=True)
 
-time.sleep(0.02)
+time.sleep(0.03)
 
 socket.send(b"""
 {

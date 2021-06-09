@@ -62,7 +62,7 @@ include_directories(
 link_directories(${Boost_LIBRARY_DIRS} ${ZEROMQ_LIBRARY_DIR} ${FFTW3_LIBRARY_DIR})
 
 ### Make the executable #######################################################
-add_executable(usrp_server src/main.cc src/options.cc src/usrp.cc src/message.cc)
+add_executable(usrp_server src/main.cc src/options.cc src/usrp.cc src/message.cc src/wave_table.cc)
 
 set(CMAKE_BUILD_TYPE "Release")
 
