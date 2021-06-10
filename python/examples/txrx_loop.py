@@ -7,10 +7,14 @@ context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect("tcp://localhost:5555")
 
+socket.send(b"""{"id":1,"type":2,"payload":[]}""")
+message = socket.recv()
+print(str(message.decode()), flush=True)
+
 socket.send(b"""
 {
   "id" : 1,
-  "type" : 2,
+  "type" : 3,
   "payload" : [
      {"key" : "tx_rate", "val": "25000000"},
      {"key" : "rx_rate", "val": "25000000"},
@@ -24,7 +28,7 @@ socket.send(b"""
      {"key" : "tx_sample_per_buffer", "val" : "300000"},
      {"key" : "clock_source", "val": "internal"},
      {"key" : "tx_prefix_wave", "val" : "1,20,SINE,20"},
-     {"key" : "rx_maximum_samples", "val" : "2200"}
+     {"key" : "rx_maximum_samples", "val" : "5200"}
    ]
 }""")
 
@@ -35,7 +39,7 @@ print(str(message.decode()), flush=True)
 for i in range(10):
     socket.send(b"""{
       "id": 2,
-      "type": 3,
+      "type": 4,
       "payload": [
         {"key": "task", "val" : "sample_to_file"},
         {"key": "filename", "val" : "/tmp/mysine%d.data"}
@@ -51,7 +55,7 @@ for i in range(10):
     socket.send(b"""
     {
      "id": 3,
-      "type": 3,
+      "type": 4,
       "payload": [
         {"key": "task", "val" : "sample_from_file"},
         {"key": "filename", "val" : "/tmp/mseq.data"}
@@ -67,7 +71,7 @@ for i in range(10):
     socket.send(b"""
     {
       "id": 4,
-      "type": 3,
+      "type": 4,
       "payload": [
         {"key": "task", "val" : "shutdown_sample_to_file"}
        ]

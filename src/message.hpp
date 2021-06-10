@@ -26,6 +26,7 @@ typedef enum {
   MT_GUARD_LO = 0,
   // Invalid message.
   MT_INVALID,
+  MT_PING,
   // Get or set USRP configuration.
   MT_CONF,
   // Let USRP do some work.
