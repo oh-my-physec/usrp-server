@@ -3,9 +3,6 @@
 
 constexpr double PI = 3.1415926535897;
 
-template class wave_table<float>;
-template class wave_table<double>;
-
 namespace {
 template <typename sample_type>
 static void gen_sine_wave(const sample_type ampl, size_t len,
@@ -67,3 +64,7 @@ template <typename sample_type>
 std::vector<std::complex<sample_type>>& wave_table<sample_type>::get_buffer() {
   return buffer;
 }
+
+// The explicit class instantiation should be put in the end of the .cc file.
+template class wave_table<float>;
+template class wave_table<double>;

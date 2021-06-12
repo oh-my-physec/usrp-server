@@ -13,6 +13,7 @@
 #include <fftw3.h>
 #include "usrp.hpp"
 #include "message.hpp"
+#include "wave_table.hpp"
 
 using mt = message_type;
 using wt = wave_type;
@@ -28,7 +29,6 @@ using wt = wave_type;
 #define LOG_ERROR UHD_LOG_ERROR
 
 namespace {
-
 template<typename T>
 static void dump_buffer_to_file(std::string &&filename,
 				const std::vector<T> &buffer) {
