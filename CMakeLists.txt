@@ -15,8 +15,8 @@ if(NOT DEFINED CMAKE_SUPPRESS_DEVELOPER_WARNINGS)
   set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS 1 CACHE INTERNAL "No dev warnings")
 endif()
 
-find_package(UHD "4.0.0")
-
+find_package(UHD "3.15.0")
+find_package(RapidJSON)
 find_package(PkgConfig)
 pkg_check_modules(PC_ZeroMQ QUIET zmq)
 pkg_check_modules(PC_FFTW3 QUIET fftw3)
