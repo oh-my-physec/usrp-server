@@ -47,7 +47,6 @@ set(UHD_BOOST_REQUIRED_COMPONENTS
   program_options
   system
   thread
-  chrono
 )
 set(BOOST_MIN_VERSION 1.58)
 include(UHDBoost)

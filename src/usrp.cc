@@ -7,7 +7,6 @@
 #include <string>
 #include <unordered_map>
 #include <boost/thread.hpp>
-#include <boost/chrono.hpp>
 #include <uhd/types/tune_request.hpp>
 #include <zmq.hpp>
 #include <fftw3.h>
