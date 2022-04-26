@@ -1,6 +1,7 @@
 /* Suppress Boost deprecated header warnings. */
 #define BOOST_ALLOW_DEPRECATED_HEADERS
 
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -704,7 +705,7 @@ void usrp::zmq_server_run() {
   };
 
   for (;;) {
-    zmq::poll(&items[0], 1, 1000);
+    zmq::poll(&items[0], 1, std::chrono::milliseconds{1000});
 
     if (items[0].revents & ZMQ_POLLIN) {
       zmq::message_t req;
